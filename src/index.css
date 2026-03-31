@@ -209,3 +209,59 @@
     font-size: 22px;
   }
 }
+
+/* Dark mode — Ventoro */
+.dark {
+  --brand-primary: 157 69% 37%;
+  --brand-dark: 155 55% 75%;
+  --brand-light: 160 50% 11%;
+  --brand-accent: 157 50% 56%;
+
+  --background: 60 7% 4%;
+  --foreground: 40 11% 93%;
+  --surface-secondary: 60 5% 8%;
+  --surface-tertiary: 50 6% 11%;
+  --surface-dark: 0 0% 0%;
+  --surface-card: 60 5% 8%;
+
+  --text-primary: 40 11% 93%;
+  --text-secondary: 60 2% 60%;
+  --text-muted: 60 3% 41%;
+  --text-inverse: 60 7% 4%;
+
+  --primary: 157 69% 37%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 60 5% 8%;
+  --secondary-foreground: 40 11% 93%;
+  --muted: 60 5% 8%;
+  --muted-foreground: 60 2% 60%;
+  --accent: 157 50% 56%;
+  --accent-foreground: 155 55% 75%;
+  --destructive: 1 72% 59%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 100% / 0.08;
+  --border-medium: 0 0% 100% / 0.14;
+  --input: 0 0% 100% / 0.08;
+  --ring: 157 69% 37%;
+
+  --card: 60 5% 8%;
+  --card-foreground: 40 11% 93%;
+  --popover: 60 5% 8%;
+  --popover-foreground: 40 11% 93%;
+
+  --sidebar-background: 60 5% 8%;
+  --sidebar-foreground: 40 11% 93%;
+}
+
+/* Transição suave ao trocar de tema */
+*, *::before, *::after {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+
+/* Exceções — elementos que não devem ter transição */
+img, svg, video, canvas,
+[class*="recharts"],
+[class*="skeleton"] {
+  transition: none !important;
+}
