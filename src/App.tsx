@@ -42,7 +42,7 @@ const App = () => (
             <Route path="/painel/equipe" element={<PlaceholderPage title="Gestão de Equipe" />} />
             <Route path="/painel/relatorios" element={<PlaceholderPage title="Relatórios" />} />
             <Route path="/painel/planos" element={<PlaceholderPage title="Planos e Cobrança" />} />
-            <Route path="/studio" element={<PlaceholderPage title="AutoStudio IA" description="Transforme suas fotos em imagens profissionais." />} />
+            <Route path="/studio" element={<PlaceholderPage title="VenStudio IA" description="Transforme suas fotos em imagens profissionais." />} />
             <Route path="/alertas" element={<PlaceholderPage title="Gerenciador de Alertas" />} />
             <Route path="/favoritos" element={<PlaceholderPage title="Favoritos" />} />
             <Route path="/pedido-de-busca" element={<PlaceholderPage title="Pedido de Busca" description="Não encontrou? Publique seu pedido." />} />

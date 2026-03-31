@@ -135,7 +135,7 @@ export default function VehicleDetailPage() {
             <div className="rounded-lg border border-brand/30 bg-brand-light p-5 mb-8">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="h-5 w-5 text-brand" />
-                <h3 className="font-display text-lg font-semibold text-text-primary">Análise AutoVitrine IA</h3>
+                <h3 className="font-display text-lg font-semibold text-text-primary">Análise Ventoro IA</h3>
               </div>
               <p className="text-body text-text-secondary mb-4">
                 O {vehicle.marca} {vehicle.modelo} {vehicle.versao} {vehicle.ano} apresenta excelente estado de conservação, com quilometragem compatível para o ano ({formatKm(vehicle.quilometragem)}). O preço está posicionado de forma competitiva, {vehicle.preco_status === "abaixo" ? "abaixo da média de mercado" : "dentro da faixa de mercado"}, representando boa oportunidade. Documentação em ordem, sem histórico de sinistros registrados.

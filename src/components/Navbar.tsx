@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { VentoroLogo } from "@/components/VentoroLogo";
 
 const navLinks = [
   { label: "Comprar", href: "/buscar" },
@@ -24,6 +25,8 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const logoVariant = scrolled || !isHome ? 'light' : 'dark';
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-200 ${
@@ -36,11 +39,8 @@ export function Navbar() {
     >
       <div className="container mx-auto flex items-center justify-between px-4 lg:px-8">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-0.5">
-          <span className={`font-display text-xl font-bold ${scrolled || !isHome ? "text-text-primary" : "text-primary-foreground"}`}>
-            Auto
-          </span>
-          <span className="font-display text-xl font-bold text-brand">Vitrine</span>
+        <Link to="/">
+          <VentoroLogo variant={logoVariant} size="md" />
         </Link>
 
         {/* Desktop nav */}

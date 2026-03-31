@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
+import { VentoroLogo } from "@/components/VentoroLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -14,9 +15,8 @@ export default function LoginPage() {
       <div className="flex items-center justify-center pt-28 pb-16 px-4">
         <div className="w-full max-w-[420px] rounded-xl border border-border bg-surface-card p-8 shadow-card">
           <div className="text-center mb-6">
-            <Link to="/" className="inline-flex items-center gap-0.5 mb-4">
-              <span className="font-display text-xl font-bold text-text-primary">Auto</span>
-              <span className="font-display text-xl font-bold text-brand">Vitrine</span>
+            <Link to="/" className="inline-block mb-4">
+              <VentoroLogo variant="light" size="md" />
             </Link>
             <h1 className="font-display text-2xl font-semibold text-text-primary">Bem-vindo de volta</h1>
           </div>

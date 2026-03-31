@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Sparkles, Shield, FileText } from "lucide-react";
 
 const features = [
-  { icon: Sparkles, label: "AutoStudio IA incluso" },
+  { icon: Sparkles, label: "VenStudio IA incluso" },
   { icon: Shield, label: "Score de confiança" },
   { icon: FileText, label: "Landing page por veículo" },
 ];
