@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SearchPage from "./pages/SearchPage";
 import VehicleDetailPage from "./pages/VehicleDetailPage";
+import VehicleLandingPage from "./pages/VehicleLandingPage";
 import GarageProfilePage from "./pages/GarageProfilePage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -25,7 +26,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/buscar" element={<SearchPage />} />
             <Route path="/veiculo/:slug" element={<VehicleDetailPage />} />
-            <Route path="/veiculo/:slug/landing" element={<PlaceholderPage title="Landing Page Inteligente" description="Landing page de vendas dedicada para este veículo." />} />
+            <Route path="/veiculo/:slug/landing" element={<VehicleLandingPage />} />
             <Route path="/garagem/:slug" element={<GarageProfilePage />} />
             <Route path="/comparar" element={<PlaceholderPage title="Comparador de Veículos" description="Compare até 3 veículos lado a lado." />} />
             <Route path="/anunciar" element={<PlaceholderPage title="Anunciar Veículo" description="Fluxo de publicação do seu anúncio com IA." />} />
