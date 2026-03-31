@@ -61,6 +61,7 @@ export function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle />
           {isAuthenticated ? (
             <div className="flex items-center gap-3">
               <Link to="/minha-conta" className="flex items-center gap-2">
