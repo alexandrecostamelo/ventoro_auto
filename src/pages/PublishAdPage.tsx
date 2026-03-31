@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import Navbar from "@/components/Navbar";
+import { Navbar } from "@/components/Navbar";
 
 const STEPS = [
   { id: 1, label: "Dados", icon: Car },

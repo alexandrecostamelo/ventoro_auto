@@ -43,7 +43,7 @@ const App = () => (
             <Route path="/veiculo/:slug/landing" element={<VehicleLandingPage />} />
             <Route path="/garagem/:slug" element={<GarageProfilePage />} />
             <Route path="/comparar" element={<ComparePage />} />
-            <Route path="/anunciar" element={<PlaceholderPage title="Anunciar Veículo" description="Fluxo de publicação do seu anúncio com IA." />} />
+            <Route path="/anunciar" element={<PublishAdPage />} />
             <Route path="/entrar" element={<LoginPage />} />
             <Route path="/cadastrar" element={<PlaceholderPage title="Criar Conta" description="Crie sua conta no Ventoro." />} />
 
