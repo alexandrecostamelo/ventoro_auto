@@ -12,6 +12,11 @@ import VehicleLandingPage from "./pages/VehicleLandingPage";
 import GarageProfilePage from "./pages/GarageProfilePage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import DashboardHome from "./pages/dashboard/DashboardHome";
+import DashboardAds from "./pages/dashboard/DashboardAds";
+import DashboardLeads from "./pages/dashboard/DashboardLeads";
+import DashboardMetrics from "./pages/dashboard/DashboardMetrics";
 
 const queryClient = new QueryClient();
 
@@ -32,10 +37,13 @@ const App = () => (
             <Route path="/anunciar" element={<PlaceholderPage title="Anunciar Veículo" description="Fluxo de publicação do seu anúncio com IA." />} />
             <Route path="/entrar" element={<LoginPage />} />
             <Route path="/cadastrar" element={<PlaceholderPage title="Criar Conta" description="Crie sua conta no Ventoro." />} />
-            <Route path="/minha-conta" element={<PlaceholderPage title="Minha Conta" description="Dashboard do anunciante particular." />} />
-            <Route path="/minha-conta/anuncios" element={<PlaceholderPage title="Meus Anúncios" />} />
-            <Route path="/minha-conta/leads" element={<PlaceholderPage title="Leads Recebidos" />} />
-            <Route path="/minha-conta/metricas" element={<PlaceholderPage title="Métricas" />} />
+
+            {/* Dashboard do anunciante particular */}
+            <Route path="/minha-conta" element={<DashboardLayout><DashboardHome /></DashboardLayout>} />
+            <Route path="/minha-conta/anuncios" element={<DashboardLayout><DashboardAds /></DashboardLayout>} />
+            <Route path="/minha-conta/leads" element={<DashboardLayout><DashboardLeads /></DashboardLayout>} />
+            <Route path="/minha-conta/metricas" element={<DashboardLayout><DashboardMetrics /></DashboardLayout>} />
+
             <Route path="/painel" element={<PlaceholderPage title="Painel da Garagem" />} />
             <Route path="/painel/estoque" element={<PlaceholderPage title="Gestão de Estoque" />} />
             <Route path="/painel/leads" element={<PlaceholderPage title="CRM de Leads" />} />

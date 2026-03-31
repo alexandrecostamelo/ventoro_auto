@@ -2,7 +2,7 @@ import { vehicles, leads, alerts, mockUser, formatPrice, formatKm } from "@/data
 import { Link } from "react-router-dom";
 import {
   Eye, Users, Heart, TrendingUp, ArrowUpRight, ArrowDownRight,
-  Sparkles, ChevronRight, MessageCircle, Clock, Megaphone,
+  Sparkles, ChevronRight, MessageCircle, Clock, Megaphone, Bell,
 } from "lucide-react";
 
 const myVehicles = vehicles.filter((v) => v.tipo_anunciante === "particular").slice(0, 3);
