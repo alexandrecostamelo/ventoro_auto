@@ -15,6 +15,7 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import ComparePage from "./pages/ComparePage";
 import PublishAdPage from "./pages/PublishAdPage";
 import VenStudioPage from "./pages/VenStudioPage";
+import AlertsPage from "./pages/AlertsPage";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import DashboardAds from "./pages/dashboard/DashboardAds";
