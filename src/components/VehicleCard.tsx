@@ -17,7 +17,7 @@ export function VehicleCard({ vehicle, layout = "grid" }: VehicleCardProps) {
   const scoreColor = vehicle.score_confianca >= 90 ? "bg-trust-high" : vehicle.score_confianca >= 75 ? "bg-trust-medium" : "bg-trust-low";
 
   const badge = vehicle.selo_studio_ia
-    ? { label: "AutoStudio IA", className: "bg-brand text-primary-foreground" }
+    ? { label: "VenStudio IA", className: "bg-brand text-primary-foreground" }
     : vehicle.tipo_anunciante === "garagem"
     ? { label: "Garagem Pro", className: "bg-garage text-primary-foreground" }
     : vehicle.destaque
