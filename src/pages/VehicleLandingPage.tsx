@@ -87,7 +87,7 @@ export default function VehicleLandingPage() {
 
         {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 py-5 md:px-12">
-          <Link to="/"><VentoroLogo variant="dark" size="sm" /></Link>
+          <Link to="/"><VentoroLogo size="sm" /></Link>
           <span className="rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-1.5 text-micro text-white/80">
             Landing Ventoro
           </span>
