@@ -15,6 +15,7 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import ComparePage from "./pages/ComparePage";
 import PublishAdPage from "./pages/PublishAdPage";
 import VenStudioPage from "./pages/VenStudioPage";
+import AlertsPage from "./pages/AlertsPage";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import DashboardAds from "./pages/dashboard/DashboardAds";
@@ -65,7 +66,7 @@ const App = () => (
             <Route path="/painel/planos" element={<GarageDashboardLayout><GaragePlans /></GarageDashboardLayout>} />
 
             <Route path="/studio" element={<VenStudioPage />} />
-            <Route path="/alertas" element={<PlaceholderPage title="Gerenciador de Alertas" />} />
+            <Route path="/alertas" element={<AlertsPage />} />
             <Route path="/favoritos" element={<PlaceholderPage title="Favoritos" />} />
             <Route path="/pedido-de-busca" element={<PlaceholderPage title="Pedido de Busca" description="Não encontrou? Publique seu pedido." />} />
             <Route path="*" element={<NotFound />} />
