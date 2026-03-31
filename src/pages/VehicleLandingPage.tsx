@@ -439,7 +439,7 @@ export default function VehicleLandingPage() {
 
       {/* ===== FOOTER ===== */}
       <footer className="py-6 bg-surface-dark text-center">
-        <Link to="/"><VentoroLogo variant="dark" size="sm" /></Link>
+        <Link to="/"><VentoroLogo size="sm" /></Link>
         <p className="text-micro text-white/30 mt-3">© 2025 Ventoro. Todos os direitos reservados.</p>
       </footer>
     </div>

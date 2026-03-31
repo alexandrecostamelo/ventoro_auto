@@ -118,7 +118,7 @@ export default function GarageDashboardLayout({ children }: { children: React.Re
           <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg hover:bg-surface-secondary">
             <Menu className="w-5 h-5 text-text-primary" />
           </button>
-          <VentoroLogo variant="light" size="sm" />
+          <VentoroLogo size="sm" />
           <div className="w-9" />
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
