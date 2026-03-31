@@ -48,9 +48,7 @@ export function Navbar() {
             <Link
               key={link.href}
               to={link.href}
-              className={`text-body font-body transition-colors hover:text-text-primary ${
-                scrolled || !isHome ? "text-text-secondary" : "text-primary-foreground/80 hover:text-primary-foreground"
-              }`}
+              className={`text-body font-body transition-colors text-white/70 hover:text-white`}
             >
               {link.label}
             </Link>
