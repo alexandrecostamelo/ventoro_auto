@@ -17,6 +17,7 @@ import PublishAdPage from "./pages/PublishAdPage";
 import VenStudioPage from "./pages/VenStudioPage";
 import AlertsPage from "./pages/AlertsPage";
 import FavoritesPage from "./pages/FavoritesPage";
+import SearchRequestPage from "./pages/SearchRequestPage";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import DashboardAds from "./pages/dashboard/DashboardAds";
@@ -69,7 +70,7 @@ const App = () => (
             <Route path="/studio" element={<VenStudioPage />} />
             <Route path="/alertas" element={<AlertsPage />} />
             <Route path="/favoritos" element={<FavoritesPage />} />
-            <Route path="/pedido-de-busca" element={<PlaceholderPage title="Pedido de Busca" description="Não encontrou? Publique seu pedido." />} />
+            <Route path="/pedido-de-busca" element={<SearchRequestPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
