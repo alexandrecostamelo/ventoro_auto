@@ -30,7 +30,7 @@ const App = () => (
             <Route path="/comparar" element={<PlaceholderPage title="Comparador de Veículos" description="Compare até 3 veículos lado a lado." />} />
             <Route path="/anunciar" element={<PlaceholderPage title="Anunciar Veículo" description="Fluxo de publicação do seu anúncio com IA." />} />
             <Route path="/entrar" element={<LoginPage />} />
-            <Route path="/cadastrar" element={<PlaceholderPage title="Criar Conta" description="Crie sua conta no AutoVitrine." />} />
+            <Route path="/cadastrar" element={<PlaceholderPage title="Criar Conta" description="Crie sua conta no Ventoro." />} />
             <Route path="/minha-conta" element={<PlaceholderPage title="Minha Conta" description="Dashboard do anunciante particular." />} />
             <Route path="/minha-conta/anuncios" element={<PlaceholderPage title="Meus Anúncios" />} />
             <Route path="/minha-conta/leads" element={<PlaceholderPage title="Leads Recebidos" />} />
