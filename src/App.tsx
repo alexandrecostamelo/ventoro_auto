@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SearchPage from "./pages/SearchPage";
 import VehicleDetailPage from "./pages/VehicleDetailPage";
+import VehicleLandingPage from "./pages/VehicleLandingPage";
 import GarageProfilePage from "./pages/GarageProfilePage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
