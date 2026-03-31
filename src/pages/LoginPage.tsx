@@ -16,7 +16,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px] rounded-xl border border-border bg-surface-card p-8 shadow-card">
           <div className="text-center mb-6">
             <Link to="/" className="inline-block mb-4">
-              <VentoroLogo variant="light" size="md" />
+              <VentoroLogo size="lg" />
             </Link>
             <h1 className="font-display text-2xl font-semibold text-text-primary">Bem-vindo de volta</h1>
           </div>

@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const SidebarContent = () => (
     <>
       <div className="p-5 border-b border-border">
-        <Link to="/"><VentoroLogo variant="light" size="sm" /></Link>
+        <Link to="/"><VentoroLogo size="sm" /></Link>
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-1">

@@ -94,7 +94,7 @@ export function Navbar() {
         {/* Mobile hamburger */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className={`md:hidden p-2 ${scrolled || !isHome ? "text-text-primary" : "text-primary-foreground"}`}
+          className="md:hidden p-2 text-white"
         >
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>

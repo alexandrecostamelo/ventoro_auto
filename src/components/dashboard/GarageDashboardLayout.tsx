@@ -40,7 +40,7 @@ export default function GarageDashboardLayout({ children }: { children: React.Re
   const SidebarContent = () => (
     <>
       <div className="p-5 border-b border-border">
-        <Link to="/"><VentoroLogo variant="light" size="sm" /></Link>
+        <Link to="/"><VentoroLogo size="sm" /></Link>
       </div>
 
       {/* Plan indicator */}
