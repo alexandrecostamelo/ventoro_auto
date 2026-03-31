@@ -11,7 +11,7 @@ const buyerSteps = [
 
 const sellerSteps = [
   { icon: Car, title: "Cadastre o veículo", desc: "Preencha os dados ou use a placa para preenchimento automático." },
-  { icon: Camera, title: "Use o AutoStudio IA", desc: "Transforme suas fotos em imagens profissionais com cenários premium." },
+  { icon: Camera, title: "Use o VenStudio IA", desc: "Transforme suas fotos em imagens profissionais com cenários premium." },
   { icon: Sparkles, title: "Publique com IA copiloto", desc: "A IA cria título, descrição e destaques persuasivos para você." },
   { icon: Users, title: "Receba leads qualificados", desc: "Acompanhe métricas, leads e sugestões de melhoria no seu dashboard." },
 ];
@@ -23,7 +23,7 @@ export function HowItWorksSection() {
   return (
     <section id="como-funciona" className="py-16 bg-surface-secondary">
       <div className="container mx-auto px-4 lg:px-8">
-        <h2 className="text-h2 text-text-primary text-center mb-2">Como funciona o AutoVitrine</h2>
+        <h2 className="text-h2 text-text-primary text-center mb-2">Como funciona o Ventoro</h2>
         <p className="text-body text-text-secondary text-center mb-8">Simples, rápido e inteligente.</p>
 
         {/* Tabs */}
