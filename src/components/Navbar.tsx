@@ -68,7 +68,7 @@ export function Navbar() {
               </Link>
               <button
                 onClick={logout}
-                className={`text-small transition-colors ${scrolled || !isHome ? "text-text-secondary hover:text-text-primary" : "text-primary-foreground/70 hover:text-primary-foreground"}`}
+                className="text-small transition-colors text-white/60 hover:text-white"
               >
                 Sair
               </button>
