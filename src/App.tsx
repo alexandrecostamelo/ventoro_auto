@@ -64,7 +64,7 @@ const App = () => (
             <Route path="/painel/relatorios" element={<GarageDashboardLayout><GarageReports /></GarageDashboardLayout>} />
             <Route path="/painel/planos" element={<GarageDashboardLayout><GaragePlans /></GarageDashboardLayout>} />
 
-            <Route path="/studio" element={<PlaceholderPage title="VenStudio IA" description="Transforme suas fotos em imagens profissionais." />} />
+            <Route path="/studio" element={<VenStudioPage />} />
             <Route path="/alertas" element={<PlaceholderPage title="Gerenciador de Alertas" />} />
             <Route path="/favoritos" element={<PlaceholderPage title="Favoritos" />} />
             <Route path="/pedido-de-busca" element={<PlaceholderPage title="Pedido de Busca" description="Não encontrou? Publique seu pedido." />} />
