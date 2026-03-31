@@ -62,7 +62,7 @@ export default function VehicleDetailPage() {
                 <img src={vehicle.fotos[mainPhoto]} alt={`${vehicle.marca} ${vehicle.modelo}`} className="h-full w-full object-cover" />
                 {vehicle.selo_studio_ia && (
                   <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-micro font-medium text-primary-foreground">
-                    <Sparkles className="h-3 w-3" /> Fotos AutoStudio IA
+                    <Sparkles className="h-3 w-3" /> Fotos VenStudio IA
                   </span>
                 )}
               </div>
