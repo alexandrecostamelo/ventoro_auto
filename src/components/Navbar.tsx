@@ -62,7 +62,7 @@ export function Navbar() {
             <div className="flex items-center gap-3">
               <Link to="/minha-conta" className="flex items-center gap-2">
                 <img src={user?.avatar_url} alt={user?.nome} className="h-8 w-8 rounded-full" />
-                <span className={`text-small font-medium ${scrolled || !isHome ? "text-text-primary" : "text-primary-foreground"}`}>
+                <span className="text-small font-medium text-white">
                   {user?.nome}
                 </span>
               </Link>
