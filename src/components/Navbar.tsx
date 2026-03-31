@@ -26,16 +26,14 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const logoVariant = scrolled || !isHome ? 'light' : 'dark';
-
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-200 ${
+      className={`fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-300 ${
         scrolled
-          ? "bg-surface-card/95 backdrop-blur-md shadow-card border-b border-border"
+          ? "bg-[#0C0C0A]/95 backdrop-blur-md shadow-card border-b border-white/10"
           : isHome
           ? "bg-transparent"
-          : "bg-surface-card border-b border-border"
+          : "bg-[#0C0C0A] border-b border-white/10"
       }`}
     >
       <div className="container mx-auto flex items-center justify-between px-4 lg:px-8">
