@@ -1,5 +1,5 @@
 import { garages } from "@/data/mock";
-import { Upload, Eye, Toggle } from "lucide-react";
+import { Upload, Eye } from "lucide-react";
 import { useState } from "react";
 
 const garage = garages[0];

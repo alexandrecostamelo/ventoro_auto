@@ -18,6 +18,14 @@ import DashboardHome from "./pages/dashboard/DashboardHome";
 import DashboardAds from "./pages/dashboard/DashboardAds";
 import DashboardLeads from "./pages/dashboard/DashboardLeads";
 import DashboardMetrics from "./pages/dashboard/DashboardMetrics";
+import GarageDashboardLayout from "./components/dashboard/GarageDashboardLayout";
+import GarageDashboardHome from "./pages/garage/GarageDashboardHome";
+import GarageInventory from "./pages/garage/GarageInventory";
+import GarageCRM from "./pages/garage/GarageCRM";
+import GarageStorefront from "./pages/garage/GarageStorefront";
+import GarageTeam from "./pages/garage/GarageTeam";
+import GarageReports from "./pages/garage/GarageReports";
+import GaragePlans from "./pages/garage/GaragePlans";
 
 const queryClient = new QueryClient();
 
@@ -45,13 +53,15 @@ const App = () => (
             <Route path="/minha-conta/leads" element={<DashboardLayout><DashboardLeads /></DashboardLayout>} />
             <Route path="/minha-conta/metricas" element={<DashboardLayout><DashboardMetrics /></DashboardLayout>} />
 
-            <Route path="/painel" element={<PlaceholderPage title="Painel da Garagem" />} />
-            <Route path="/painel/estoque" element={<PlaceholderPage title="Gestão de Estoque" />} />
-            <Route path="/painel/leads" element={<PlaceholderPage title="CRM de Leads" />} />
-            <Route path="/painel/vitrine" element={<PlaceholderPage title="Configuração da Vitrine" />} />
-            <Route path="/painel/equipe" element={<PlaceholderPage title="Gestão de Equipe" />} />
-            <Route path="/painel/relatorios" element={<PlaceholderPage title="Relatórios" />} />
-            <Route path="/painel/planos" element={<PlaceholderPage title="Planos e Cobrança" />} />
+            {/* Dashboard da garagem */}
+            <Route path="/painel" element={<GarageDashboardLayout><GarageDashboardHome /></GarageDashboardLayout>} />
+            <Route path="/painel/estoque" element={<GarageDashboardLayout><GarageInventory /></GarageDashboardLayout>} />
+            <Route path="/painel/leads" element={<GarageDashboardLayout><GarageCRM /></GarageDashboardLayout>} />
+            <Route path="/painel/vitrine" element={<GarageDashboardLayout><GarageStorefront /></GarageDashboardLayout>} />
+            <Route path="/painel/equipe" element={<GarageDashboardLayout><GarageTeam /></GarageDashboardLayout>} />
+            <Route path="/painel/relatorios" element={<GarageDashboardLayout><GarageReports /></GarageDashboardLayout>} />
+            <Route path="/painel/planos" element={<GarageDashboardLayout><GaragePlans /></GarageDashboardLayout>} />
+
             <Route path="/studio" element={<PlaceholderPage title="VenStudio IA" description="Transforme suas fotos em imagens profissionais." />} />
             <Route path="/alertas" element={<PlaceholderPage title="Gerenciador de Alertas" />} />
             <Route path="/favoritos" element={<PlaceholderPage title="Favoritos" />} />
