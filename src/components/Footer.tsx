@@ -9,7 +9,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link to="/" className="inline-block mb-4">
-              <VentoroLogo variant="dark" size="md" />
+              <VentoroLogo size="md" />
             </Link>
             <p className="text-small text-primary-foreground/60 mb-6 max-w-xs">
               Marketplace de veículos com inteligência artificial. Compre e venda com confiança.

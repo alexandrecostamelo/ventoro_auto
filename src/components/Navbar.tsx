@@ -26,22 +26,20 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const logoVariant = scrolled || !isHome ? 'light' : 'dark';
-
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-200 ${
+      className={`fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-300 ${
         scrolled
-          ? "bg-surface-card/95 backdrop-blur-md shadow-card border-b border-border"
+          ? "bg-[#0C0C0A]/95 backdrop-blur-md shadow-card border-b border-white/10"
           : isHome
           ? "bg-transparent"
-          : "bg-surface-card border-b border-border"
+          : "bg-[#0C0C0A] border-b border-white/10"
       }`}
     >
       <div className="container mx-auto flex items-center justify-between px-4 lg:px-8">
         {/* Logo */}
         <Link to="/">
-          <VentoroLogo variant={logoVariant} size="md" />
+          <VentoroLogo size="md" />
         </Link>
 
         {/* Desktop nav */}
@@ -50,9 +48,7 @@ export function Navbar() {
             <Link
               key={link.href}
               to={link.href}
-              className={`text-body font-body transition-colors hover:text-text-primary ${
-                scrolled || !isHome ? "text-text-secondary" : "text-primary-foreground/80 hover:text-primary-foreground"
-              }`}
+              className={`text-body font-body transition-colors text-white/70 hover:text-white`}
             >
               {link.label}
             </Link>
@@ -66,13 +62,13 @@ export function Navbar() {
             <div className="flex items-center gap-3">
               <Link to="/minha-conta" className="flex items-center gap-2">
                 <img src={user?.avatar_url} alt={user?.nome} className="h-8 w-8 rounded-full" />
-                <span className={`text-small font-medium ${scrolled || !isHome ? "text-text-primary" : "text-primary-foreground"}`}>
+                <span className="text-small font-medium text-white">
                   {user?.nome}
                 </span>
               </Link>
               <button
                 onClick={logout}
-                className={`text-small transition-colors ${scrolled || !isHome ? "text-text-secondary hover:text-text-primary" : "text-primary-foreground/70 hover:text-primary-foreground"}`}
+                className="text-small transition-colors text-white/60 hover:text-white"
               >
                 Sair
               </button>
@@ -81,7 +77,7 @@ export function Navbar() {
             <>
               <Link
                 to="/entrar"
-                className={`text-body font-medium transition-colors ${scrolled || !isHome ? "text-brand hover:text-brand-dark" : "text-primary-foreground hover:text-primary-foreground/80"}`}
+                className="text-body font-medium transition-colors text-white hover:text-white/80"
               >
                 Entrar
               </Link>
@@ -98,7 +94,7 @@ export function Navbar() {
         {/* Mobile hamburger */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className={`md:hidden p-2 ${scrolled || !isHome ? "text-text-primary" : "text-primary-foreground"}`}
+          className="md:hidden p-2 text-white"
         >
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
