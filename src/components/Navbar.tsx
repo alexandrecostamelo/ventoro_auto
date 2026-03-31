@@ -77,7 +77,7 @@ export function Navbar() {
             <>
               <Link
                 to="/entrar"
-                className={`text-body font-medium transition-colors ${scrolled || !isHome ? "text-brand hover:text-brand-dark" : "text-primary-foreground hover:text-primary-foreground/80"}`}
+                className="text-body font-medium transition-colors text-white hover:text-white/80"
               >
                 Entrar
               </Link>
