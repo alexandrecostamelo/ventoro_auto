@@ -39,7 +39,7 @@ export function Navbar() {
       <div className="container mx-auto flex items-center justify-between px-4 lg:px-8">
         {/* Logo */}
         <Link to="/">
-          <VentoroLogo variant={logoVariant} size="md" />
+          <VentoroLogo size="md" />
         </Link>
 
         {/* Desktop nav */}
