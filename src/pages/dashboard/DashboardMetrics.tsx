@@ -1,10 +1,16 @@
+// Dados reais a partir da migração 005 (tabela visualizacoes_diarias).
+// O RPC incrementar_visualizacao_veiculo (migração 006) alimenta essa tabela.
+// NÃO usar dados simulados aqui.
+
 import { useState } from "react";
 import { vehicles as mockVehicles, formatPrice } from "@/data/mock";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { TrendingUp } from "lucide-react";
 import { USE_REAL_DATA } from "@/config/flags";
 import { useVeiculosAnunciante } from "@/hooks/useVeiculosAnunciante";
+import { useVisualizacoesPorDia } from "@/hooks/useVisualizacoesPorDia";
 import { formatarPreco } from "@/utils/formatters";
 
 // ─── Period config ────────────────────────────────────────────────────────────
@@ -12,61 +18,19 @@ import { formatarPreco } from "@/utils/formatters";
 const PERIODS = ["7 dias", "30 dias", "90 dias"] as const;
 type Period = (typeof PERIODS)[number];
 
-// ─── Simulated views chart (Option B) ─────────────────────────────────────────
-
-/**
- * Distributes a total view count across days with a realistic weekly curve.
- * Weekend days (Sat/Sun) get higher weight. No historical data is stored,
- * so this is a plausible approximation derived from the real cumulative total.
- */
-function gerarViewsSimuladas(total: number, periodo: Period): { day: string; views: number }[] {
-  if (total === 0) {
-    const labels7 = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-    return labels7.map((day) => ({ day, views: 0 }));
-  }
-
-  if (periodo === "7 dias") {
-    const labels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-    const weights = [0.10, 0.13, 0.11, 0.16, 0.15, 0.24, 0.18];
-    return labels.map((day, i) => ({ day, views: Math.round(total * weights[i]) }));
-  }
-
-  if (periodo === "30 dias") {
-    const items: { day: string; views: number }[] = [];
-    const weights: number[] = [];
-    for (let i = 0; i < 30; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - 29 + i);
-      const dow = d.getDay();
-      weights.push(dow === 0 || dow === 6 ? 1.4 : 0.9);
-    }
-    const sumW = weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < 30; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - 29 + i);
-      items.push({
-        day: `${d.getDate()}/${d.getMonth() + 1}`,
-        views: Math.round((total * weights[i]) / sumW),
-      });
-    }
-    return items;
-  }
-
-  // 90 dias — aggregate by week (13 weeks)
-  const basePerWeek = Math.round(total / 13);
-  return Array.from({ length: 13 }, (_, i) => ({
-    day: `S${i + 1}`,
-    views: basePerWeek,
-  }));
-}
+const PERIOD_TO_DIAS: Record<Period, number> = {
+  "7 dias": 7,
+  "30 dias": 30,
+  "90 dias": 90,
+};
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const MOCK_VIEWS_7D = [
-  { day: "Seg", views: 120 }, { day: "Ter", views: 185 },
-  { day: "Qua", views: 142 }, { day: "Qui", views: 210 },
-  { day: "Sex", views: 198 }, { day: "Sáb", views: 310 },
-  { day: "Dom", views: 245 },
+  { data: "Seg", total: 120 }, { data: "Ter", total: 185 },
+  { data: "Qua", total: 142 }, { data: "Qui", total: 210 },
+  { data: "Sex", total: 198 }, { data: "Sáb", total: 310 },
+  { data: "Dom", total: 245 },
 ];
 
 const MOCK_LEADS_PER_VEHICLE = mockVehicles.slice(0, 5).map((v) => ({
@@ -90,7 +54,21 @@ const HEATMAP_DATA = Array.from({ length: 24 }, (_, h) => ({
       : Math.round(Math.random() * 20),
 }));
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Formata 'YYYY-MM-DD' → 'DD/MM' para label dos eixos */
+function formatarDataEixo(iso: string): string {
+  const [, mes, dia] = iso.split("-");
+  return `${dia}/${mes}`;
+}
+
+/** Para séries de 7 dias, mostra o dia da semana abreviado */
+function formatarDataEixo7d(iso: string): string {
+  const d = new Date(iso + "T12:00:00"); // hora fixa para evitar drift de timezone
+  return ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()];
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SkeletonChart({ height = 280 }: { height?: number }) {
   return (
@@ -101,7 +79,19 @@ function SkeletonChart({ height = 280 }: { height?: number }) {
   );
 }
 
-// ─── Tooltip style ────────────────────────────────────────────────────────────
+function EmptyStateGrafico() {
+  return (
+    <div className="flex flex-col items-center justify-center h-[280px] gap-3 text-center px-6">
+      <div className="rounded-full bg-brand-light p-4">
+        <TrendingUp className="w-6 h-6 text-brand" />
+      </div>
+      <p className="text-body font-medium text-text-primary">Coletando dados</p>
+      <p className="text-small text-text-secondary max-w-xs">
+        Volte em alguns dias para ver a evolução das visualizações dos seus anúncios.
+      </p>
+    </div>
+  );
+}
 
 const TOOLTIP_STYLE = {
   backgroundColor: "hsl(var(--background))",
@@ -114,12 +104,17 @@ const TOOLTIP_STYLE = {
 
 export default function DashboardMetrics() {
   const [period, setPeriod] = useState<Period>("7 dias");
-  const { veiculos, metricas, loading } = useVeiculosAnunciante();
+  const { veiculos, loading: veicLoading } = useVeiculosAnunciante();
 
-  // Derived data for real path
-  const viewsData = USE_REAL_DATA
-    ? gerarViewsSimuladas(metricas.totalViews, period)
-    : MOCK_VIEWS_7D;
+  const dias = PERIOD_TO_DIAS[period];
+  const {
+    data: viewsData,
+    loading: viewsLoading,
+    error: viewsError,
+    temHistoricoSuficiente,
+  } = useVisualizacoesPorDia({ dias: USE_REAL_DATA ? dias : 7 });
+
+  // ── BarChart e performance: dados reais vs mock ─────────────────────────────
 
   const leadsPerVehicle = USE_REAL_DATA
     ? veiculos.slice(0, 5).map((v) => ({
@@ -142,6 +137,12 @@ export default function DashboardMetrics() {
       }))
     : MOCK_PERFORMANCE;
 
+  // ── LineChart: tick formatter por período ─────────────────────────────────
+
+  const tickFormatter = period === "7 dias" ? formatarDataEixo7d : formatarDataEixo;
+  // Para 30 dias mostrar um label a cada 5, para 90 dias a cada 15
+  const xAxisInterval = period === "7 dias" ? 0 : period === "30 dias" ? 4 : 14;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -163,28 +164,70 @@ export default function DashboardMetrics() {
         </div>
       </div>
 
-      {/* Views chart */}
+      {/* Views chart — dados reais da tabela visualizacoes_diarias */}
       <div className="rounded-xl border border-border bg-background p-6">
-        <h3 className="text-h4 text-text-primary mb-1">Visualizações ao longo do tempo</h3>
+        <h3 className="text-h4 text-text-primary mb-4">Visualizações ao longo do tempo</h3>
+
+        {/* Real data path */}
         {USE_REAL_DATA && (
-          <p className="text-micro text-text-muted mb-4">
-            Estimativa proporcional baseada no total acumulado de visualizações.
-          </p>
+          <>
+            {viewsLoading && <SkeletonChart height={280} />}
+            {!viewsLoading && viewsError && (
+              <div className="flex items-center justify-center h-[280px]">
+                <p className="text-small text-text-secondary">
+                  Não foi possível carregar o gráfico.
+                </p>
+              </div>
+            )}
+            {!viewsLoading && !viewsError && !temHistoricoSuficiente && (
+              <EmptyStateGrafico />
+            )}
+            {!viewsLoading && !viewsError && temHistoricoSuficiente && (
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={viewsData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="data"
+                      tick={{ fontSize: 12 }}
+                      stroke="hsl(var(--text-muted))"
+                      tickFormatter={tickFormatter}
+                      interval={xAxisInterval}
+                    />
+                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
+                    <Tooltip
+                      contentStyle={TOOLTIP_STYLE}
+                      labelFormatter={formatarDataEixo}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="total"
+                      name="Visualizações"
+                      stroke="hsl(var(--brand-primary))"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "hsl(var(--brand-primary))" }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </>
         )}
-        {!USE_REAL_DATA && <div className="mb-4" />}
-        {USE_REAL_DATA && loading ? (
-          <SkeletonChart height={280} />
-        ) : (
+
+        {/* Mock data path */}
+        {!USE_REAL_DATA && (
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={viewsData}>
+              <LineChart data={MOCK_VIEWS_7D}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
+                <XAxis dataKey="data" tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
                 <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Line
                   type="monotone"
-                  dataKey="views"
+                  dataKey="total"
+                  name="Visualizações"
                   stroke="hsl(var(--brand-primary))"
                   strokeWidth={2}
                   dot={{ r: 4, fill: "hsl(var(--brand-primary))" }}
@@ -195,10 +238,10 @@ export default function DashboardMetrics() {
         )}
       </div>
 
-      {/* Leads per vehicle */}
+      {/* Leads per vehicle — dados agregados totais, sem série temporal */}
       <div className="rounded-xl border border-border bg-background p-6">
         <h3 className="text-h4 text-text-primary mb-4">Leads por veículo</h3>
-        {USE_REAL_DATA && loading ? (
+        {USE_REAL_DATA && veicLoading ? (
           <SkeletonChart height={240} />
         ) : (
           <div className="h-[240px]">
@@ -226,7 +269,7 @@ export default function DashboardMetrics() {
         <div className="p-6 pb-0">
           <h3 className="text-h4 text-text-primary mb-4">Performance por anúncio</h3>
         </div>
-        {USE_REAL_DATA && loading ? (
+        {USE_REAL_DATA && veicLoading ? (
           <div className="p-6">
             <SkeletonChart height={180} />
           </div>
@@ -273,7 +316,7 @@ export default function DashboardMetrics() {
         )}
       </div>
 
-      {/* Heatmap — decorative, no real data source */}
+      {/* Heatmap — decorativo, sem fonte de dados real */}
       <div className="rounded-xl border border-border bg-background p-6">
         <h3 className="text-h4 text-text-primary mb-4">Horários com mais acessos</h3>
         <div className="flex flex-wrap gap-1.5">
