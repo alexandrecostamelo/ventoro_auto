@@ -1,11 +1,11 @@
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { VentoroLogo } from "@/components/VentoroLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { mockUser } from "@/data/mock";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Megaphone, Users, BarChart3, Camera, Bell, Settings, LogOut, Menu, X,
 } from "lucide-react";
-import { useState } from "react";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/minha-conta" },
@@ -19,12 +19,38 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, profile, signOut, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Auth guard — redireciona para /entrar se não estiver logado
+  useEffect(() => {
+    if (!loading && !user) navigate("/entrar");
+  }, [loading, user, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-secondary">
+        <div className="w-8 h-8 rounded-full border-2 border-brand border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) return null; // redirect já disparado, evita flash de conteúdo
 
   const isActive = (path: string) =>
     path === "/minha-conta"
       ? location.pathname === "/minha-conta"
       : location.pathname.startsWith(path);
+
+  const displayName = profile?.nome ?? user.email ?? "Usuário";
+  const displayEmail = user.email ?? "";
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+
+  async function handleSignOut() {
+    await signOut();
+    navigate("/");
+  }
 
   const SidebarContent = () => (
     <>
@@ -52,23 +78,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-3">
-          <img
-            src={mockUser.avatar_url}
-            alt={mockUser.nome}
-            className="w-9 h-9 rounded-full"
-          />
+          {profile?.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={displayName}
+              className="w-9 h-9 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-brand-light flex items-center justify-center flex-shrink-0">
+              <span className="text-small font-bold text-brand">{avatarLetter}</span>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-small font-medium text-text-primary truncate">{mockUser.nome}</p>
-            <p className="text-micro text-text-muted truncate">{mockUser.email}</p>
+            <p className="text-small font-medium text-text-primary truncate">{displayName}</p>
+            <p className="text-micro text-text-muted truncate">{displayEmail}</p>
           </div>
           <ThemeToggle />
         </div>
-        <Link
-          to="/"
-          className="flex items-center gap-2 mt-3 px-3 py-2 rounded-lg text-micro text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors"
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-2 mt-3 w-full px-3 py-2 rounded-lg text-micro text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" /> Sair
-        </Link>
+        </button>
       </div>
     </>
   );
