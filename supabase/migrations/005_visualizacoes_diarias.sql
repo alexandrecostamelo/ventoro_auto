@@ -34,19 +34,9 @@ CREATE POLICY "anunciante_particular_select_visualizacoes_diarias"
     )
   );
 
--- Garagem vê os snapshots dos veículos dela (para Módulo 4E)
-CREATE POLICY "garagem_select_visualizacoes_diarias"
-  ON public.visualizacoes_diarias
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.veiculos v
-      JOIN public.profiles p ON p.id = auth.uid()
-      WHERE v.id = visualizacoes_diarias.veiculo_id
-        AND v.garagem_id = p.garagem_id
-        AND p.garagem_id IS NOT NULL
-    )
-  );
+-- NOTA: policy de garagem será adicionada na migração 007 quando o Módulo 4E
+-- definir o mapeamento user→garagem (profiles.garagem_id vs garagens.owner_id
+-- vs tabela de membros). Não antecipar aqui.
 
 -- INSERT e UPDATE apenas via service_role (RPC com SECURITY DEFINER)
 -- Não há política de escrita para authenticated/anon — negado por padrão.
