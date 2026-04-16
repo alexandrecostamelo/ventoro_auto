@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database.types'
 
-type Veiculo = Database['public']['Tables']['veiculos']['Row']
+import type { VeiculoComFotos } from '../utils/adapters'
 
 interface FiltrosVeiculo {
   marca?: string
@@ -24,7 +24,7 @@ interface FiltrosVeiculo {
 }
 
 export function useVeiculos(filtros: FiltrosVeiculo = {}) {
-  const [veiculos, setVeiculos] = useState<Veiculo[]>([])
+  const [veiculos, setVeiculos] = useState<VeiculoComFotos[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

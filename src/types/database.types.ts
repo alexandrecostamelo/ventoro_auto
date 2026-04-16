@@ -53,6 +53,8 @@ export interface Database {
           total_vendas: number
           avaliacao: number
           tempo_resposta_minutos: number
+          total_estoque: number
+          anos_plataforma: number
         }
         Insert: Omit<Database['public']['Tables']['garagens']['Row'], 'created_at' | 'updated_at' | 'score_confianca' | 'total_vendas' | 'avaliacao' | 'tempo_resposta_minutos'>
         Update: Partial<Database['public']['Tables']['garagens']['Insert']>
@@ -102,6 +104,7 @@ export interface Database {
           visualizacoes: number
           favoritos_count: number
           leads_count: number
+          publicado_em: string | null
         }
         Insert: Omit<Database['public']['Tables']['veiculos']['Row'], 'created_at' | 'updated_at' | 'visualizacoes' | 'favoritos_count' | 'leads_count' | 'score_confianca'>
         Update: Partial<Database['public']['Tables']['veiculos']['Insert']>
