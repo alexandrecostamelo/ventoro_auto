@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +20,7 @@ import { Navbar } from "@/components/Navbar";
 import { usePublicarVeiculo, type DadosNovoVeiculo } from "@/hooks/usePublicarVeiculo";
 import { useAuth } from "@/contexts/AuthContext";
 import { USE_REAL_DATA } from "@/config/flags";
+import { validarArquivoImagem } from "@/utils/imageCompression";
 
 const STEPS = [
   { id: 1, label: "Dados", icon: Car },
@@ -69,12 +70,7 @@ const OPCIONAIS_LIST = [
   "Piloto automático", "Start/Stop", "Farol de LED", "Keyless entry",
 ];
 
-// Fotos de demonstração — upload real no Módulo 5
-const DEMO_PHOTOS = [
-  "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400",
-  "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400",
-  "https://images.unsplash.com/photo-1542362567-b07e54358753?w=400",
-];
+const MAX_FOTOS = 15;
 
 interface FormData extends DadosNovoVeiculo {}
 
@@ -111,6 +107,11 @@ export default function PublishAdPage() {
   const [step, setStep] = useState(1);
   const [stepError, setStepError] = useState<string | null>(null);
   const [slugPublicado, setSlugPublicado] = useState<string | null>(null);
+  const [uploadInfo, setUploadInfo] = useState<string | null>(null);
+
+  // Fotos: File objects + object URLs para preview (separados do form)
+  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
+  const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
 
   const [form, setForm] = useState<FormData>({
     marca: "", modelo: "", versao: "", ano: "", quilometragem: "",
@@ -147,13 +148,28 @@ export default function PublishAdPage() {
     }));
   };
 
-  const addDemoPhoto = () => {
-    const next = DEMO_PHOTOS[form.fotos.length % DEMO_PHOTOS.length];
-    updateForm("fotos", [...form.fotos, next]);
+  const handleFilesAdded = (files: File[]) => {
+    const restantes = MAX_FOTOS - fotoFiles.length;
+    if (restantes <= 0) {
+      setStepError(`Limite de ${MAX_FOTOS} fotos atingido.`);
+      return;
+    }
+    const toAdd = files.slice(0, restantes);
+    const ignoradas = files.length - toAdd.length;
+    const novosPreviews = toAdd.map((f) => URL.createObjectURL(f));
+    setFotoFiles((prev) => [...prev, ...toAdd]);
+    setFotoPreviews((prev) => [...prev, ...novosPreviews]);
+    if (ignoradas > 0) {
+      setStepError(`Limite de ${MAX_FOTOS} fotos. ${ignoradas} foto(s) ignorada(s).`);
+    } else {
+      setStepError(null);
+    }
   };
 
   const removePhoto = (idx: number) => {
-    updateForm("fotos", form.fotos.filter((_, i) => i !== idx));
+    URL.revokeObjectURL(fotoPreviews[idx]);
+    setFotoFiles((prev) => prev.filter((_, i) => i !== idx));
+    setFotoPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const simulateStudio = () => {
@@ -199,12 +215,16 @@ export default function PublishAdPage() {
       setStep(7);
       return;
     }
-    const resultado = await publicar(form);
+    setUploadInfo(null);
+    const resultado = await publicar(form, fotoFiles, (n, total) => {
+      setUploadInfo(`Enviando fotos ${n}/${total}…`);
+    });
+    setUploadInfo(null);
     if (resultado) {
       setSlugPublicado(resultado.slug);
       setStep(7);
     }
-    // Se falhou, publishError fica setado — exibido no botão
+    // Se falhou, publishError fica setado — exibido abaixo do botão
   };
 
   const isPublishStep = step === 6;
@@ -263,7 +283,11 @@ export default function PublishAdPage() {
               <StepVehicleData form={form} updateForm={updateForm} toggleOpcional={toggleOpcional} />
             )}
             {step === 2 && (
-              <StepPhotos form={form} addPhoto={addDemoPhoto} removePhoto={removePhoto} />
+              <StepPhotos
+                previews={fotoPreviews}
+                onFilesAdded={handleFilesAdded}
+                onRemove={removePhoto}
+              />
             )}
             {step === 3 && (
               <StepStudio form={form} processing={studioProcessing} onProcess={simulateStudio} />
@@ -306,7 +330,7 @@ export default function PublishAdPage() {
                       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
                         <Sparkles className="h-4 w-4" />
                       </motion.div>
-                      Publicando…
+                      {uploadInfo ?? "Publicando…"}
                     </span>
                   ) : (
                     <>
@@ -444,55 +468,135 @@ function StepVehicleData({ form, updateForm, toggleOpcional }: {
 }
 
 /* ──────────── Step 2: Photos ──────────── */
-function StepPhotos({ form, addPhoto, removePhoto }: {
-  form: FormData;
-  addPhoto: () => void;
-  removePhoto: (idx: number) => void;
+function StepPhotos({
+  previews,
+  onFilesAdded,
+  onRemove,
+}: {
+  previews: string[];
+  onFilesAdded: (files: File[]) => void;
+  onRemove: (idx: number) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const processFiles = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    setValidationError(null);
+    const validos: File[] = [];
+    const erros: string[] = [];
+    for (const file of Array.from(fileList)) {
+      const erro = validarArquivoImagem(file);
+      if (erro) { erros.push(erro); continue; }
+      validos.push(file);
+    }
+    if (erros.length > 0) setValidationError(erros[0]);
+    if (validos.length > 0) onFilesAdded(validos);
+    // Reset input so the same file can be re-selected after removal
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">Fotos do Veículo</h2>
-        <p className="text-muted-foreground mt-1">Adicione fotos do seu veículo (opcional — upload real no Módulo 5)</p>
+        <p className="text-muted-foreground mt-1">
+          Adicione até {MAX_FOTOS} fotos — a primeira será a capa do anúncio
+        </p>
       </div>
 
-      <Card className="border-dashed border-2 border-primary/30 bg-primary/5">
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Upload className="h-10 w-10 text-primary mb-3" />
-          <p className="font-semibold text-foreground">Upload de fotos</p>
-          <p className="text-sm text-muted-foreground mb-1">Upload real disponível no Módulo 5</p>
-          <p className="text-xs text-muted-foreground mb-4">Por enquanto, adicione fotos de demonstração</p>
-          <Button variant="outline" onClick={addPhoto}>
-            <Camera className="h-4 w-4 mr-2" /> Adicionar foto de demo
+      {/* Hidden file input */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => processFiles(e.target.files)}
+      />
+
+      {/* Drop zone */}
+      <Card
+        className={`border-dashed border-2 cursor-pointer transition-all select-none ${
+          dragOver
+            ? "border-primary bg-primary/10 scale-[1.01]"
+            : "border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/8"
+        }`}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          processFiles(e.dataTransfer.files);
+        }}
+      >
+        <CardContent className="flex flex-col items-center justify-center py-12 pointer-events-none">
+          <Upload className={`h-10 w-10 mb-3 transition-colors ${dragOver ? "text-primary" : "text-primary/60"}`} />
+          <p className="font-semibold text-foreground">
+            {dragOver ? "Solte para adicionar" : "Clique ou arraste fotos aqui"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">JPEG, PNG, WebP • máx. {MAX_FOTOS} fotos</p>
+          <Button
+            variant="outline"
+            type="button"
+            className="mt-4 pointer-events-auto"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+          >
+            <Camera className="h-4 w-4 mr-2" /> Selecionar fotos
           </Button>
         </CardContent>
       </Card>
 
-      {form.fotos.length > 0 && (
+      {/* Erro de validação inline */}
+      {validationError && (
+        <p className="text-sm text-destructive flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {validationError}
+        </p>
+      )}
+
+      {/* Grid de previews */}
+      {previews.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <Label className="text-base font-semibold">{form.fotos.length} foto(s) adicionada(s)</Label>
-            <Badge variant="outline">{form.fotos.length}/20</Badge>
+            <Label className="text-base font-semibold">
+              {previews.length} foto(s) selecionada(s)
+            </Label>
+            <Badge variant="outline" className={previews.length >= MAX_FOTOS ? "text-destructive border-destructive" : ""}>
+              {previews.length}/{MAX_FOTOS}
+            </Badge>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {form.fotos.map((foto, idx) => (
-              <div key={idx} className="relative group rounded-xl overflow-hidden aspect-[4/3]">
-                <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+            {previews.map((url, idx) => (
+              <div key={idx} className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-muted">
+                <img
+                  src={url}
+                  alt={`Foto ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                />
                 {idx === 0 && (
-                  <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">Capa</Badge>
+                  <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
+                    Capa
+                  </Badge>
                 )}
                 <button
-                  onClick={() => removePhoto(idx)}
-                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  type="button"
+                  onClick={() => onRemove(idx)}
+                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </div>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            As fotos serão comprimidas e enviadas ao publicar o anúncio.
+          </p>
         </div>
       )}
 
+      {/* Dicas */}
       <div className="bg-muted/50 rounded-xl p-4 flex gap-3">
         <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
         <div className="text-sm text-muted-foreground">

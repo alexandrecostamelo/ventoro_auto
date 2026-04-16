@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { comprimirImagem } from '../utils/imageCompression'
+import { uploadFotoVeiculo } from '../lib/storage'
 
 export interface DadosNovoVeiculo {
   // Step 1 — dados do veículo
@@ -17,7 +19,7 @@ export interface DadosNovoVeiculo {
   estado: string
   opcionais: string[]
   condicao: string
-  // Step 2 — fotos (URLs — upload real no Módulo 5)
+  // Step 2 — fotos (fallback mock: URLs; real: File[] passado separadamente)
   fotos: string[]
   // Step 3 — VenStudio IA
   studioProcessed: boolean
@@ -35,7 +37,11 @@ export interface DadosNovoVeiculo {
 }
 
 interface PublicarResult {
-  publicar: (dados: DadosNovoVeiculo) => Promise<{ id: string; slug: string } | null>
+  publicar: (
+    dados: DadosNovoVeiculo,
+    fotoFiles?: File[],
+    onProgress?: (n: number, total: number) => void,
+  ) => Promise<{ id: string; slug: string } | null>
   loading: boolean
   error: Error | null
 }
@@ -71,7 +77,11 @@ export function usePublicarVeiculo(): PublicarResult {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
-  const publicar = async (dados: DadosNovoVeiculo): Promise<{ id: string; slug: string } | null> => {
+  const publicar = async (
+    dados: DadosNovoVeiculo,
+    fotoFiles?: File[],
+    onProgress?: (n: number, total: number) => void,
+  ): Promise<{ id: string; slug: string } | null> => {
     if (!user || !profile) {
       setError(new Error('Usuário não autenticado'))
       return null
@@ -99,7 +109,7 @@ export function usePublicarVeiculo(): PublicarResult {
     const diasPlano = PLANO_DIAS[dados.plano] ?? 30
     const validadeAte = new Date(agora.getTime() + diasPlano * 24 * 60 * 60 * 1000).toISOString()
 
-    // Tenta INSERT com até 3 slugs diferentes (colisão de UNIQUE slug é rara mas possível)
+    // INSERT com até 3 slugs diferentes (colisão de UNIQUE slug é rara mas possível)
     let veiculo: { id: string; slug: string } | null = null
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       const slug = gerarSlug(dados.marca, dados.modelo, dados.ano, dados.cidade)
@@ -146,13 +156,12 @@ export function usePublicarVeiculo(): PublicarResult {
         break
       }
 
-      // 23505 = unique_violation (slug collision) — tenta de novo com novo slug
+      // 23505 = unique_violation (slug collision)
       if (insertError.code !== '23505') {
         setError(new Error(insertError.message))
         setLoading(false)
         return null
       }
-      // Se for a última tentativa e ainda colidiu, retorna erro
       if (tentativa === 2) {
         setError(new Error('Não foi possível gerar um identificador único. Tente novamente.'))
         setLoading(false)
@@ -165,9 +174,60 @@ export function usePublicarVeiculo(): PublicarResult {
       return null
     }
 
-    // INSERT fotos (opcional — se não houver URLs, pula)
-    // Upload real de arquivos fica para o Módulo 5
-    if (dados.fotos.length > 0) {
+    // ── Upload real de fotos ──────────────────────────────────────────────────
+    if (fotoFiles && fotoFiles.length > 0) {
+      const fotoInserts: Array<{
+        veiculo_id: string
+        url_original: string
+        url_processada: null
+        ordem: number
+        is_capa: boolean
+        processada_por_ia: boolean
+      }> = []
+
+      for (let i = 0; i < fotoFiles.length; i++) {
+        onProgress?.(i + 1, fotoFiles.length)
+
+        // Comprimir
+        let comprimida: File
+        try {
+          comprimida = await comprimirImagem(fotoFiles[i])
+        } catch (compressErr) {
+          console.warn(`[usePublicarVeiculo] compressão foto ${i} falhou:`, compressErr)
+          continue
+        }
+
+        // Upload pro bucket — path: {veiculoId}/{index}.jpg
+        const { url, error: uploadError } = await uploadFotoVeiculo(
+          veiculo.id,
+          comprimida,
+          `${i}.jpg`,
+        )
+
+        if (!url || uploadError) {
+          console.warn(`[usePublicarVeiculo] upload foto ${i} falhou:`, uploadError)
+          continue // não aborta — continua com as outras fotos
+        }
+
+        fotoInserts.push({
+          veiculo_id: veiculo.id,
+          url_original: url,
+          url_processada: null,
+          ordem: i,
+          is_capa: i === 0,
+          processada_por_ia: false,
+        })
+      }
+
+      if (fotoInserts.length > 0) {
+        const { error: fotosError } = await supabase.from('fotos_veiculo').insert(fotoInserts)
+        if (fotosError) {
+          console.warn('[usePublicarVeiculo] fotos_veiculo INSERT falhou:', fotosError.message)
+        }
+      }
+
+    } else if (dados.fotos.length > 0) {
+      // Fallback: URLs mock/demo (caminho USE_REAL_DATA=false ou fotos de demonstração)
       const fotoInserts = dados.fotos.map((url, idx) => ({
         veiculo_id: veiculo!.id,
         url_original: url,
@@ -178,9 +238,7 @@ export function usePublicarVeiculo(): PublicarResult {
       }))
       const { error: fotosError } = await supabase.from('fotos_veiculo').insert(fotoInserts)
       if (fotosError) {
-        // Veículo foi criado com sucesso — fotos falharam (provavelmente RLS)
-        // Não revertemos o veículo — logamos o erro mas continuamos
-        console.warn('[usePublicarVeiculo] fotos_veiculo INSERT falhou:', fotosError.message)
+        console.warn('[usePublicarVeiculo] fotos_veiculo INSERT falhou (mock):', fotosError.message)
       }
     }
 

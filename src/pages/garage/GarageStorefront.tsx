@@ -1,7 +1,9 @@
-import { Upload, Eye, Save, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Upload, Eye, Save, Check, AlertTriangle, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useMinhaGaragem } from "@/hooks/useMinhaGaragem";
 import { supabase } from "@/lib/supabase";
+import { uploadLogoGaragem, uploadCapaGaragem } from "@/lib/storage";
+import { comprimirImagem, validarArquivoImagem } from "@/utils/imageCompression";
 
 const sections = [
   { id: "sobre", label: "Sobre" },
@@ -29,6 +31,18 @@ export default function GarageStorefront() {
   const [salvando, setSalvando] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Upload de logo
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+
+  // Upload de capa
+  const capaInputRef = useRef<HTMLInputElement>(null);
+  const [capaPreview, setCapaPreview] = useState<string | null>(null);
+  const [capaUploading, setCapaUploading] = useState(false);
+  const [capaError, setCapaError] = useState<string | null>(null);
 
   // Inicializa form com dados reais quando carregam
   useEffect(() => {
@@ -82,6 +96,75 @@ export default function GarageStorefront() {
     setTimeout(() => setSavedOk(false), 3000);
   }
 
+  async function handleLogoUpload(file: File) {
+    const erroValidacao = validarArquivoImagem(file);
+    if (erroValidacao) { setLogoError(erroValidacao); return; }
+
+    // Limite de 1MB para logo
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 5) { setLogoError("Logo muito grande. Máximo 5MB."); return; }
+
+    setLogoError(null);
+    setLogoUploading(true);
+    // Preview imediato
+    const previewUrl = URL.createObjectURL(file);
+    setLogoPreview(previewUrl);
+
+    try {
+      const comprimida = await comprimirImagem(file, { maxSizeMB: 1, maxWidth: 400, maxHeight: 400 });
+      const { url, error: uploadError } = await uploadLogoGaragem(garagem.id, comprimida);
+      if (uploadError || !url) throw new Error(uploadError ?? "Upload falhou");
+
+      const { error: updateError } = await supabase
+        .from("garagens")
+        .update({ logo_url: url })
+        .eq("id", garagem.id);
+      if (updateError) throw new Error(updateError.message);
+
+      recarregar();
+    } catch (err) {
+      setLogoError((err as Error).message);
+      setLogoPreview(null);
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
+  async function handleCapaUpload(file: File) {
+    const erroValidacao = validarArquivoImagem(file);
+    if (erroValidacao) { setCapaError(erroValidacao); return; }
+
+    setCapaError(null);
+    setCapaUploading(true);
+    // Preview imediato
+    const previewUrl = URL.createObjectURL(file);
+    setCapaPreview(previewUrl);
+
+    try {
+      const comprimida = await comprimirImagem(file, { maxSizeMB: 3, maxWidth: 1920, maxHeight: 600 });
+      const { url, error: uploadError } = await uploadCapaGaragem(garagem.id, comprimida);
+      if (uploadError || !url) throw new Error(uploadError ?? "Upload falhou");
+
+      const { error: updateError } = await supabase
+        .from("garagens")
+        .update({ capa_url: url })
+        .eq("id", garagem.id);
+      if (updateError) throw new Error(updateError.message);
+
+      recarregar();
+    } catch (err) {
+      setCapaError((err as Error).message);
+      setCapaPreview(null);
+    } finally {
+      setCapaUploading(false);
+      if (capaInputRef.current) capaInputRef.current.value = "";
+    }
+  }
+
+  const logoDisplayUrl = logoPreview ?? garagem.logo_url;
+  const capaDisplayUrl = capaPreview ?? garagem.capa_url;
+
   const formFields: { label: string; field: keyof FormState; type?: string }[] = [
     { label: "Nome da garagem", field: "nome" },
     { label: "Especialidades", field: "especialidade" },
@@ -94,33 +177,95 @@ export default function GarageStorefront() {
     <div className="space-y-6">
       <h1 className="text-h2 text-text-primary">Configuração da vitrine</h1>
 
+      {/* Hidden file inputs */}
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}
+      />
+      <input
+        ref={capaInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleCapaUpload(e.target.files[0])}
+      />
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Form */}
         <div className="space-y-5">
           {/* Logo & Cover */}
           <div className="rounded-xl border border-border bg-background p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-h4 text-text-primary">Identidade visual</h3>
-              <span className="text-micro text-text-muted bg-surface-secondary px-2 py-1 rounded-md">
-                Upload disponível no Módulo 5
-              </span>
-            </div>
+            <h3 className="text-h4 text-text-primary">Identidade visual</h3>
+
             <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Logo", current: garagem.logo_url },
-                { label: "Capa", current: garagem.capa_url },
-              ].map((item) => (
-                <div key={item.label}>
-                  <p className="text-micro text-text-muted mb-2">{item.label}</p>
-                  <div className="rounded-xl border-2 border-dashed border-border bg-surface-secondary h-28 flex flex-col items-center justify-center relative overflow-hidden">
-                    {item.current ? (
-                      <img src={item.current} alt={item.label} className="absolute inset-0 w-full h-full object-cover opacity-40" />
-                    ) : null}
-                    <Upload className="w-5 h-5 text-text-muted mb-1 relative z-10" />
-                    <span className="text-micro text-text-muted relative z-10">Em breve</span>
+              {/* Logo */}
+              <div>
+                <p className="text-micro text-text-muted mb-2">Logo</p>
+                <div
+                  className="rounded-xl border-2 border-dashed border-border bg-surface-secondary h-28 flex flex-col items-center justify-center relative overflow-hidden cursor-pointer hover:border-garage hover:bg-garage-light/30 transition-all group"
+                  onClick={() => !logoUploading && logoInputRef.current?.click()}
+                >
+                  {logoDisplayUrl ? (
+                    <img
+                      src={logoDisplayUrl}
+                      alt="Logo"
+                      className="absolute inset-0 w-full h-full object-cover transition-opacity group-hover:opacity-70"
+                    />
+                  ) : null}
+                  <div className="relative z-10 flex flex-col items-center">
+                    {logoUploading ? (
+                      <Loader2 className="w-5 h-5 text-garage animate-spin mb-1" />
+                    ) : (
+                      <Upload className="w-5 h-5 text-text-muted group-hover:text-garage mb-1 transition-colors" />
+                    )}
+                    <span className="text-micro text-text-muted group-hover:text-garage transition-colors">
+                      {logoUploading ? "Enviando…" : logoDisplayUrl ? "Trocar logo" : "Adicionar logo"}
+                    </span>
                   </div>
                 </div>
-              ))}
+                {logoError && (
+                  <p className="text-micro text-danger mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> {logoError}
+                  </p>
+                )}
+                <p className="text-micro text-text-muted mt-1">JPEG, PNG, WebP • máx. 1MB</p>
+              </div>
+
+              {/* Capa */}
+              <div>
+                <p className="text-micro text-text-muted mb-2">Capa</p>
+                <div
+                  className="rounded-xl border-2 border-dashed border-border bg-surface-secondary h-28 flex flex-col items-center justify-center relative overflow-hidden cursor-pointer hover:border-garage hover:bg-garage-light/30 transition-all group"
+                  onClick={() => !capaUploading && capaInputRef.current?.click()}
+                >
+                  {capaDisplayUrl ? (
+                    <img
+                      src={capaDisplayUrl}
+                      alt="Capa"
+                      className="absolute inset-0 w-full h-full object-cover transition-opacity group-hover:opacity-70"
+                    />
+                  ) : null}
+                  <div className="relative z-10 flex flex-col items-center">
+                    {capaUploading ? (
+                      <Loader2 className="w-5 h-5 text-garage animate-spin mb-1" />
+                    ) : (
+                      <Upload className="w-5 h-5 text-text-muted group-hover:text-garage mb-1 transition-colors" />
+                    )}
+                    <span className="text-micro text-text-muted group-hover:text-garage transition-colors">
+                      {capaUploading ? "Enviando…" : capaDisplayUrl ? "Trocar capa" : "Adicionar capa"}
+                    </span>
+                  </div>
+                </div>
+                {capaError && (
+                  <p className="text-micro text-danger mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> {capaError}
+                  </p>
+                )}
+                <p className="text-micro text-text-muted mt-1">JPEG, PNG, WebP • máx. 3MB</p>
+              </div>
             </div>
           </div>
 
@@ -208,13 +353,13 @@ export default function GarageStorefront() {
             <div className="rounded-xl border border-border bg-background overflow-hidden shadow-elevated">
               <div
                 className="h-28 bg-cover bg-center relative"
-                style={{ backgroundImage: garagem.capa_url ? `url(${garagem.capa_url})` : undefined }}
+                style={{ backgroundImage: capaDisplayUrl ? `url(${capaDisplayUrl})` : undefined }}
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>
               <div className="px-5 pb-5 -mt-8 relative">
-                {garagem.logo_url ? (
-                  <img src={garagem.logo_url} alt={form.nome} className="w-14 h-14 rounded-xl border-2 border-white shadow mb-3 object-cover" />
+                {logoDisplayUrl ? (
+                  <img src={logoDisplayUrl} alt={form.nome} className="w-14 h-14 rounded-xl border-2 border-white shadow mb-3 object-cover" />
                 ) : (
                   <div className="w-14 h-14 rounded-xl border-2 border-white shadow mb-3 bg-garage-light flex items-center justify-center">
                     <span className="font-display text-xl font-bold text-garage">{form.nome.charAt(0)}</span>
