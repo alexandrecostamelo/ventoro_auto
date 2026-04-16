@@ -1,13 +1,15 @@
 import { Link } from "react-router-dom";
 import { Vehicle, formatPrice, formatKm } from "@/data/mock";
-import { MapPin, Fuel, Sparkles } from "lucide-react";
+import { MapPin, Fuel, Sparkles, Heart } from "lucide-react";
 
 interface VehicleCardProps {
   vehicle: Vehicle;
   layout?: "grid" | "list";
+  isFavorito?: boolean;
+  onToggleFavorito?: (e: React.MouseEvent) => void;
 }
 
-export function VehicleCard({ vehicle, layout = "grid" }: VehicleCardProps) {
+export function VehicleCard({ vehicle, layout = "grid", isFavorito = false, onToggleFavorito }: VehicleCardProps) {
   const priceTag = {
     abaixo: { label: "▼ abaixo da média", className: "bg-brand-light text-brand-dark" },
     na_media: { label: "= preço justo", className: "bg-amber-50 text-amber-700" },
@@ -30,6 +32,14 @@ export function VehicleCard({ vehicle, layout = "grid" }: VehicleCardProps) {
         <div className="flex gap-4 rounded-lg border border-border bg-surface-card p-3 shadow-card transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5">
           <div className="relative w-[200px] h-[150px] flex-shrink-0 overflow-hidden rounded-md">
             <img src={vehicle.fotos[0]} alt={`${vehicle.marca} ${vehicle.modelo}`} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+            {onToggleFavorito && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorito(e); }}
+                className="absolute bottom-2 right-2 flex items-center justify-center h-7 w-7 rounded-full bg-black/60 backdrop-blur-sm transition-transform hover:scale-110 active:scale-95"
+              >
+                <Heart className={`h-3.5 w-3.5 transition-colors ${isFavorito ? "fill-red-500 text-red-500" : "text-white"}`} />
+              </button>
+            )}
           </div>
           <div className="flex flex-1 flex-col justify-between py-1">
             <div>
@@ -61,6 +71,14 @@ export function VehicleCard({ vehicle, layout = "grid" }: VehicleCardProps) {
             <span className={`h-2 w-2 rounded-full ${scoreColor}`} />
             {vehicle.score_confianca}
           </span>
+          {onToggleFavorito && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorito(e); }}
+              className="absolute bottom-3 right-3 flex items-center justify-center h-8 w-8 rounded-full bg-black/60 backdrop-blur-sm transition-transform hover:scale-110 active:scale-95"
+            >
+              <Heart className={`h-4 w-4 transition-colors ${isFavorito ? "fill-red-500 text-red-500" : "text-white"}`} />
+            </button>
+          )}
         </div>
 
         {/* Content */}

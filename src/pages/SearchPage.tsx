@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
 import { vehicles as mockVehicles } from "@/data/mock";
 import { useVeiculos } from "@/hooks/useVeiculos";
+import { useFavoritos } from "@/hooks/useFavoritos";
+import { useAuth } from "@/contexts/AuthContext";
 import { veiculoDbParaMock, type VeiculoComFotos } from "@/utils/adapters";
 import { USE_REAL_DATA } from "@/config/flags";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +38,10 @@ interface FiltrosState {
 }
 
 export default function SearchPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorito, toggleFavorito } = useFavoritos();
+
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [activeChip, setActiveChip] = useState("Todos");
   const [sort, setSort] = useState("Mais relevantes");
@@ -198,7 +205,15 @@ export default function SearchPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: i * 0.03 }}
                   >
-                    <VehicleCard vehicle={vehicle} layout={layout} />
+                    <VehicleCard
+                      vehicle={vehicle}
+                      layout={layout}
+                      isFavorito={USE_REAL_DATA ? isFavorito(vehicle.id) : undefined}
+                      onToggleFavorito={USE_REAL_DATA ? () => {
+                        if (!user) { navigate("/entrar"); return; }
+                        toggleFavorito(vehicle.id);
+                      } : undefined}
+                    />
                   </motion.div>
                 ))}
               </div>

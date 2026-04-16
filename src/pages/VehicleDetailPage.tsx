@@ -1,10 +1,12 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
 import { vehicles as mockVehicles, garages as mockGarages, formatPrice, formatKm } from "@/data/mock";
 import { useVeiculo, useVeiculos } from "@/hooks/useVeiculos";
+import { useFavoritos } from "@/hooks/useFavoritos";
+import { useAuth } from "@/contexts/AuthContext";
 import { veiculoDbParaMock, type VeiculoComFotos } from "@/utils/adapters";
 import { USE_REAL_DATA } from "@/config/flags";
 import { incrementarVisualizacao } from "@/lib/visualizacoes";
@@ -40,6 +42,10 @@ interface GarageInfo {
 
 export default function VehicleDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorito, toggleFavorito } = useFavoritos();
+
   const [mainPhoto, setMainPhoto] = useState(0);
   const [showFinancing, setShowFinancing] = useState(false);
   const [entrada, setEntrada] = useState(30);
@@ -392,8 +398,16 @@ export default function VehicleDetailPage() {
                 </button>
 
                 <div className="flex justify-center gap-6 mb-4 border-t border-border pt-4">
-                  <button className="flex items-center gap-1 text-small text-text-muted hover:text-brand transition-colors">
-                    <Heart className="h-4 w-4" /> Favoritar
+                  <button
+                    onClick={() => {
+                      if (!USE_REAL_DATA) return;
+                      if (!user) { navigate("/entrar"); return; }
+                      toggleFavorito(vehicle.id);
+                    }}
+                    className="flex items-center gap-1 text-small text-text-muted hover:text-brand transition-colors"
+                  >
+                    <Heart className={`h-4 w-4 transition-colors ${USE_REAL_DATA && isFavorito(vehicle.id) ? "fill-red-500 text-red-500" : ""}`} />
+                    {USE_REAL_DATA && isFavorito(vehicle.id) ? "Favoritado" : "Favoritar"}
                   </button>
                   <button className="flex items-center gap-1 text-small text-text-muted hover:text-brand transition-colors">
                     <Share2 className="h-4 w-4" /> Compartilhar
