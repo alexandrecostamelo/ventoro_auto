@@ -12,6 +12,15 @@ export type VeiculoComFotos = Database['public']['Tables']['veiculos']['Row'] & 
   fotos_veiculo: FotoVeiculo[]
 }
 
+// Tipo completo para a página de detalhe (inclui todos os JOINs)
+export type VeiculoDetalhe = Database['public']['Tables']['veiculos']['Row'] & {
+  fotos_veiculo: Database['public']['Tables']['fotos_veiculo']['Row'][]
+  conteudo_ia: Database['public']['Tables']['conteudo_ia']['Row'][] | null
+  historico_preco: Database['public']['Tables']['historico_preco']['Row'][] | null
+  profiles: Database['public']['Tables']['profiles']['Row'] | null
+  garagens: Database['public']['Tables']['garagens']['Row'] | null
+}
+
 const PLACEHOLDER = '/placeholder-car.jpg'
 
 export function veiculoDbParaMock(v: VeiculoComFotos): Vehicle {

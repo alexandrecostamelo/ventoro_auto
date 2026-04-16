@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Database } from '../types/database.types'
-
-import type { VeiculoComFotos } from '../utils/adapters'
+import type { VeiculoComFotos, VeiculoDetalhe } from '../utils/adapters'
 
 interface FiltrosVeiculo {
   marca?: string
@@ -82,7 +80,7 @@ export function useVeiculos(filtros: FiltrosVeiculo = {}) {
 }
 
 export function useVeiculo(slug: string) {
-  const [veiculo, setVeiculo] = useState<Veiculo | null>(null)
+  const [veiculo, setVeiculo] = useState<VeiculoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -91,6 +89,7 @@ export function useVeiculo(slug: string) {
 
     async function buscar() {
       setLoading(true)
+      setError(null)
       const { data, error } = await supabase
         .from('veiculos')
         .select('*, fotos_veiculo(*), conteudo_ia(*), historico_preco(*), profiles!anunciante_id(*), garagens(*)')
@@ -99,10 +98,7 @@ export function useVeiculo(slug: string) {
         .single()
 
       if (error) setError(error.message)
-      else {
-        setVeiculo(data)
-        supabase.rpc('incrementar_visualizacoes', { veiculo_id: data.id }).then(() => {})
-      }
+      else setVeiculo(data as VeiculoDetalhe)
       setLoading(false)
     }
 
