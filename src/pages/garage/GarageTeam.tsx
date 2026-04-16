@@ -1,4 +1,4 @@
-import { Plus, Mail, MoreHorizontal } from "lucide-react";
+import { Plus, Mail, MoreHorizontal, Info } from "lucide-react";
 import { useState } from "react";
 
 const teamMembers = [
@@ -24,6 +24,17 @@ export default function GarageTeam() {
         </button>
       </div>
 
+      {/* Em breve banner */}
+      <div className="rounded-xl border border-garage/30 bg-garage-light p-4 flex items-start gap-3">
+        <Info className="w-5 h-5 text-garage flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-small font-medium text-garage">Em breve — gestão de equipe</p>
+          <p className="text-micro text-text-secondary mt-0.5">
+            A gestão real de membros, convites e distribuição de leads estará disponível em uma próxima versão da plataforma. Os dados exibidos abaixo são demonstrativos.
+          </p>
+        </div>
+      </div>
+
       {/* Lead distribution */}
       <div className="rounded-xl border border-border bg-background p-5">
         <h3 className="text-h4 text-text-primary mb-3">Distribuição de leads</h3>
@@ -36,9 +47,13 @@ export default function GarageTeam() {
                 distribution === opt ? "border-garage bg-garage-light" : "border-border"
               }`}
             >
-              <p className="text-small font-medium text-text-primary">{opt === "auto" ? "Round-robin automático" : "Atribuição manual"}</p>
+              <p className="text-small font-medium text-text-primary">
+                {opt === "auto" ? "Round-robin automático" : "Atribuição manual"}
+              </p>
               <p className="text-micro text-text-muted mt-1">
-                {opt === "auto" ? "Leads distribuídos igualmente entre vendedores ativos" : "Gerente atribui cada lead manualmente"}
+                {opt === "auto"
+                  ? "Leads distribuídos igualmente entre vendedores ativos"
+                  : "Gerente atribui cada lead manualmente"}
               </p>
             </button>
           ))}
@@ -82,7 +97,9 @@ export default function GarageTeam() {
                     </span>
                   </td>
                   <td className="p-4">
-                    <button className="text-text-muted hover:text-text-primary"><MoreHorizontal className="w-4 h-4" /></button>
+                    <button className="text-text-muted hover:text-text-primary">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -96,15 +113,16 @@ export default function GarageTeam() {
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowInvite(false)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background rounded-2xl border border-border shadow-elevated z-50 p-6">
-            <h3 className="text-h3 text-text-primary mb-4">Convidar vendedor</h3>
-            <div className="space-y-3">
+            <h3 className="text-h3 text-text-primary mb-1">Convidar vendedor</h3>
+            <p className="text-micro text-text-muted mb-4">Funcionalidade disponível em breve.</p>
+            <div className="space-y-3 opacity-50 pointer-events-none">
               <div>
                 <label className="text-micro text-text-muted mb-1 block">Email</label>
-                <input type="email" placeholder="vendedor@email.com" className="w-full rounded-lg border border-border bg-surface-secondary px-4 py-2.5 text-body text-text-primary outline-none focus:border-garage" />
+                <input type="email" placeholder="vendedor@email.com" className="w-full rounded-lg border border-border bg-surface-secondary px-4 py-2.5 text-body text-text-primary outline-none" />
               </div>
               <div>
                 <label className="text-micro text-text-muted mb-1 block">Função</label>
-                <select className="w-full rounded-lg border border-border bg-surface-secondary px-4 py-2.5 text-body text-text-primary outline-none focus:border-garage">
+                <select className="w-full rounded-lg border border-border bg-surface-secondary px-4 py-2.5 text-body text-text-primary outline-none">
                   <option>Vendedor</option>
                   <option>Gerente</option>
                 </select>
@@ -112,10 +130,10 @@ export default function GarageTeam() {
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowInvite(false)} className="flex-1 rounded-full border border-border py-2.5 text-small font-medium text-text-secondary hover:bg-surface-secondary transition-colors">
-                Cancelar
+                Fechar
               </button>
-              <button onClick={() => setShowInvite(false)} className="flex-1 rounded-full bg-garage text-white py-2.5 text-small font-medium hover:brightness-90 transition-all flex items-center justify-center gap-2">
-                <Mail className="w-4 h-4" /> Enviar convite
+              <button disabled className="flex-1 rounded-full bg-garage/40 text-white py-2.5 text-small font-medium cursor-not-allowed flex items-center justify-center gap-2">
+                <Mail className="w-4 h-4" /> Em breve
               </button>
             </div>
           </div>
