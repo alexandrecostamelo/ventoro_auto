@@ -105,6 +105,7 @@ export interface Database {
           favoritos_count: number
           leads_count: number
           publicado_em: string | null
+          aceita_troca: boolean
         }
         Insert: Omit<Database['public']['Tables']['veiculos']['Row'], 'created_at' | 'updated_at' | 'visualizacoes' | 'favoritos_count' | 'leads_count' | 'score_confianca'>
         Update: Partial<Database['public']['Tables']['veiculos']['Insert']>

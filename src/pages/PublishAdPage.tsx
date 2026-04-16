@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Car, Camera, Wand2, MessageSquareText, DollarSign, Crown, CheckCircle2,
   ChevronLeft, ChevronRight, Upload, X, Sparkles, AlertTriangle, Info,
-  Fuel, Gauge, Palette, Zap, Settings2, MapPin, FileText, Star,
-  Image as ImageIcon, Eye, ArrowRight, Shield
+  FileText, Star, Image as ImageIcon, Eye, ArrowRight, Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,9 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Navbar } from "@/components/Navbar";
+import { usePublicarVeiculo, type DadosNovoVeiculo } from "@/hooks/usePublicarVeiculo";
+import { useAuth } from "@/contexts/AuthContext";
+import { USE_REAL_DATA } from "@/config/flags";
 
 const STEPS = [
   { id: 1, label: "Dados", icon: Car },
@@ -29,66 +31,118 @@ const STEPS = [
   { id: 7, label: "Sucesso", icon: CheckCircle2 },
 ];
 
-const MARCAS = ["Toyota", "Honda", "Volkswagen", "Chevrolet", "Hyundai", "Jeep", "Fiat", "BMW", "Mercedes-Benz", "Audi"];
-const COMBUSTIVEIS = ["Flex", "Gasolina", "Etanol", "Diesel", "Elétrico", "Híbrido"];
-const CAMBIOS = ["Automático", "Manual", "CVT", "Automatizado"];
+const MARCAS = [
+  "Toyota", "Honda", "Volkswagen", "Chevrolet", "Hyundai",
+  "Jeep", "Fiat", "BMW", "Mercedes-Benz", "Audi",
+];
+
+// Valores em lowercase para corresponder ao enum do banco
+const COMBUSTIVEIS = [
+  { label: "Flex", value: "flex" },
+  { label: "Gasolina", value: "gasolina" },
+  { label: "Etanol", value: "etanol" },
+  { label: "Diesel", value: "diesel" },
+  { label: "Elétrico", value: "eletrico" },
+  { label: "Híbrido", value: "hibrido" },
+];
+
+// "Automatizado" removido — não existe no schema
+const CAMBIOS = [
+  { label: "Automático", value: "automatico" },
+  { label: "Manual", value: "manual" },
+  { label: "CVT", value: "cvt" },
+];
+
 const CORES = ["Branco", "Preto", "Prata", "Cinza", "Vermelho", "Azul", "Verde"];
 
-interface FormData {
-  marca: string; modelo: string; versao: string; ano: string;
-  quilometragem: string; combustivel: string; cambio: string;
-  cor: string; potencia: string; cidade: string; estado: string;
-  opcionais: string[];
-  fotos: string[];
-  studioProcessed: boolean;
-  descricao: string;
-  preco: string;
-  aceitaTroca: boolean;
-  plano: string;
-}
+const CONDICOES = [
+  { label: "Excelente", value: "excelente" },
+  { label: "Ótimo", value: "otimo" },
+  { label: "Bom", value: "bom" },
+  { label: "Regular", value: "regular" },
+];
 
 const OPCIONAIS_LIST = [
   "Ar-condicionado", "Direção elétrica", "Vidro elétrico", "Trava elétrica",
   "Airbag", "ABS", "Câmera de ré", "Sensor de estacionamento",
   "Central multimídia", "Banco de couro", "Teto solar", "Rodas de liga",
-  "Piloto automático", "Start/Stop", "Farol de LED", "Keyless entry"
+  "Piloto automático", "Start/Stop", "Farol de LED", "Keyless entry",
 ];
 
-const MOCK_PHOTOS = [
+// Fotos de demonstração — upload real no Módulo 5
+const DEMO_PHOTOS = [
   "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400",
   "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400",
   "https://images.unsplash.com/photo-1542362567-b07e54358753?w=400",
 ];
 
+interface FormData extends DadosNovoVeiculo {}
+
+function validarStep(step: number, form: FormData): string | null {
+  if (step === 1) {
+    if (!form.marca) return "Selecione a marca do veículo.";
+    if (!form.modelo.trim()) return "Informe o modelo do veículo.";
+    if (!form.ano || isNaN(parseInt(form.ano, 10))) return "Informe um ano válido.";
+    if (!form.quilometragem) return "Informe a quilometragem.";
+    if (!form.combustivel) return "Selecione o tipo de combustível.";
+    if (!form.cambio) return "Selecione o câmbio.";
+    if (!form.cidade.trim()) return "Informe a cidade.";
+    if (!form.estado.trim()) return "Informe o estado (sigla, ex: SP).";
+    return null;
+  }
+  if (step === 5) {
+    if (!form.preco || Number(form.preco) <= 0) return "Informe um preço válido maior que zero.";
+    return null;
+  }
+  return null;
+}
+
 export default function PublishAdPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { publicar, loading: publicando, error: publishError } = usePublicarVeiculo();
+
   const [step, setStep] = useState(1);
+  const [stepError, setStepError] = useState<string | null>(null);
+  const [slugPublicado, setSlugPublicado] = useState<string | null>(null);
+
   const [form, setForm] = useState<FormData>({
     marca: "", modelo: "", versao: "", ano: "", quilometragem: "",
     combustivel: "", cambio: "", cor: "", potencia: "", cidade: "", estado: "",
-    opcionais: [], fotos: [], studioProcessed: false,
-    descricao: "", preco: "", aceitaTroca: false, plano: "destaque",
+    opcionais: [],
+    condicao: "bom",
+    fotos: [],
+    studioProcessed: false,
+    descricao: "",
+    preco: "",
+    aceitaTroca: false,
+    ipva_pago: false,
+    revisoes_em_dia: false,
+    sem_sinistro: false,
+    num_chaves: 1,
+    plano: "premium",  // "destaque" no wizard, mapeado para "premium" no DB
   });
+
   const [aiGenerating, setAiGenerating] = useState(false);
   const [studioProcessing, setStudioProcessing] = useState(false);
 
   const progress = (step / STEPS.length) * 100;
 
-  const updateForm = (field: keyof FormData, value: any) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  const updateForm = (field: keyof FormData, value: unknown) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleOpcional = (op: string) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       opcionais: prev.opcionais.includes(op)
-        ? prev.opcionais.filter(o => o !== op)
-        : [...prev.opcionais, op]
+        ? prev.opcionais.filter((o) => o !== op)
+        : [...prev.opcionais, op],
     }));
   };
 
-  const addMockPhoto = () => {
-    const next = MOCK_PHOTOS[form.fotos.length % MOCK_PHOTOS.length];
+  const addDemoPhoto = () => {
+    const next = DEMO_PHOTOS[form.fotos.length % DEMO_PHOTOS.length];
     updateForm("fotos", [...form.fotos, next]);
   };
 
@@ -107,18 +161,47 @@ export default function PublishAdPage() {
   const simulateAI = () => {
     setAiGenerating(true);
     setTimeout(() => {
-      updateForm("descricao",
+      updateForm(
+        "descricao",
         `${form.marca} ${form.modelo} ${form.versao} ${form.ano} em excelente estado de conservação. ` +
-        `Com apenas ${form.quilometragem || "XX.XXX"} km rodados, este veículo conta com motor ${form.combustivel || "flex"} e câmbio ${form.cambio || "automático"}. ` +
-        `Equipado com ${form.opcionais.slice(0, 4).join(", ") || "diversos opcionais"}, oferece conforto e segurança para toda a família. ` +
-        `IPVA pago, revisões em dia e sem qualquer pendência. Único dono, nunca batido. Oportunidade imperdível!`
+          `Com apenas ${form.quilometragem || "XX.XXX"} km rodados, este veículo conta com motor ${form.combustivel || "flex"} e câmbio ${form.cambio || "automático"}. ` +
+          `Equipado com ${form.opcionais.slice(0, 4).join(", ") || "diversos opcionais"}, oferece conforto e segurança para toda a família. ` +
+          `IPVA pago, revisões em dia e sem qualquer pendência. Único dono, nunca batido. Oportunidade imperdível!`
       );
       setAiGenerating(false);
     }, 2000);
   };
 
-  const nextStep = () => setStep(s => Math.min(s + 1, 7));
-  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+  const nextStep = () => {
+    const erro = validarStep(step, form);
+    if (erro) {
+      setStepError(erro);
+      return;
+    }
+    setStepError(null);
+    setStep((s) => Math.min(s + 1, 7));
+  };
+
+  const prevStep = () => {
+    setStepError(null);
+    setStep((s) => Math.max(s - 1, 1));
+  };
+
+  const handlePublicar = async () => {
+    if (!USE_REAL_DATA) {
+      // Mock: avança direto para o sucesso sem INSERT
+      setStep(7);
+      return;
+    }
+    const resultado = await publicar(form);
+    if (resultado) {
+      setSlugPublicado(resultado.slug);
+      setStep(7);
+    }
+    // Se falhou, publishError fica setado — exibido no botão
+  };
+
+  const isPublishStep = step === 6;
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,16 +211,12 @@ export default function PublishAdPage() {
         <div className="sticky top-16 z-30 bg-background/95 backdrop-blur border-b border-border">
           <div className="max-w-4xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                Etapa {step} de 7
-              </span>
-              <span className="text-sm font-medium text-primary">
-                {Math.round(progress)}%
-              </span>
+              <span className="text-sm font-medium text-muted-foreground">Etapa {step} de 6</span>
+              <span className="text-sm font-medium text-primary">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-1.5 mb-3" />
             <div className="flex gap-1">
-              {STEPS.map(s => {
+              {STEPS.filter((s) => s.id < 7).map((s) => {
                 const Icon = s.icon;
                 const isActive = s.id === step;
                 const isDone = s.id < step;
@@ -172,24 +251,68 @@ export default function PublishAdPage() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.25 }}
           >
-            {step === 1 && <StepVehicleData form={form} updateForm={updateForm} toggleOpcional={toggleOpcional} />}
-            {step === 2 && <StepPhotos form={form} addPhoto={addMockPhoto} removePhoto={removePhoto} />}
-            {step === 3 && <StepStudio form={form} processing={studioProcessing} onProcess={simulateStudio} />}
-            {step === 4 && <StepCopilot form={form} updateForm={updateForm} generating={aiGenerating} onGenerate={simulateAI} />}
+            {step === 1 && (
+              <StepVehicleData form={form} updateForm={updateForm} toggleOpcional={toggleOpcional} />
+            )}
+            {step === 2 && (
+              <StepPhotos form={form} addPhoto={addDemoPhoto} removePhoto={removePhoto} />
+            )}
+            {step === 3 && (
+              <StepStudio form={form} processing={studioProcessing} onProcess={simulateStudio} />
+            )}
+            {step === 4 && (
+              <StepCopilot form={form} updateForm={updateForm} generating={aiGenerating} onGenerate={simulateAI} />
+            )}
             {step === 5 && <StepPricing form={form} updateForm={updateForm} />}
-            {step === 6 && <StepPlan form={form} updateForm={updateForm} />}
-            {step === 7 && <StepSuccess form={form} navigate={navigate} />}
+            {step === 6 && <StepPlan form={form} updateForm={updateForm} user={user} />}
+            {step === 7 && <StepSuccess form={form} navigate={navigate} slug={slugPublicado} />}
           </motion.div>
         </AnimatePresence>
 
         {step < 7 && (
-          <div className="flex justify-between mt-8 pt-6 border-t border-border">
-            <Button variant="outline" onClick={prevStep} disabled={step === 1}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-            </Button>
-            <Button onClick={nextStep} className="bg-primary hover:bg-primary/90">
-              {step === 6 ? "Publicar Anúncio" : "Continuar"} <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+          <div className="mt-8 pt-6 border-t border-border space-y-3">
+            {/* Erro de validação por etapa */}
+            {stepError && (
+              <p className="text-sm text-destructive text-center flex items-center justify-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {stepError}
+              </p>
+            )}
+            {/* Erro de publicação */}
+            {isPublishStep && publishError && (
+              <p className="text-sm text-destructive text-center flex items-center justify-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {publishError.message}
+              </p>
+            )}
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={prevStep} disabled={step === 1 || publicando}>
+                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+              </Button>
+              {isPublishStep ? (
+                <Button
+                  onClick={handlePublicar}
+                  disabled={publicando}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {publicando ? (
+                    <span className="flex items-center gap-2">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                        <Sparkles className="h-4 w-4" />
+                      </motion.div>
+                      Publicando…
+                    </span>
+                  ) : (
+                    <>
+                      {user?.user_metadata?.tipo === "garagem" ? "Publicar no estoque" : "Publicar anúncio"}
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button onClick={nextStep} className="bg-primary hover:bg-primary/90">
+                  Continuar <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -198,7 +321,11 @@ export default function PublishAdPage() {
 }
 
 /* ──────────── Step 1: Vehicle Data ──────────── */
-function StepVehicleData({ form, updateForm, toggleOpcional }: any) {
+function StepVehicleData({ form, updateForm, toggleOpcional }: {
+  form: FormData;
+  updateForm: (f: keyof FormData, v: unknown) => void;
+  toggleOpcional: (op: string) => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -209,59 +336,76 @@ function StepVehicleData({ form, updateForm, toggleOpcional }: any) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Marca *</Label>
-          <Select value={form.marca} onValueChange={v => updateForm("marca", v)}>
+          <Select value={form.marca} onValueChange={(v) => updateForm("marca", v)}>
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{MARCAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {MARCAS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           <Label>Modelo *</Label>
-          <Input placeholder="Ex: Corolla" value={form.modelo} onChange={e => updateForm("modelo", e.target.value)} />
+          <Input placeholder="Ex: Corolla" value={form.modelo} onChange={(e) => updateForm("modelo", e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>Versão</Label>
-          <Input placeholder="Ex: Altis Premium" value={form.versao} onChange={e => updateForm("versao", e.target.value)} />
+          <Input placeholder="Ex: Altis Premium" value={form.versao} onChange={(e) => updateForm("versao", e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>Ano *</Label>
-          <Input placeholder="Ex: 2023" type="number" value={form.ano} onChange={e => updateForm("ano", e.target.value)} />
+          <Input placeholder="Ex: 2023" type="number" value={form.ano} onChange={(e) => updateForm("ano", e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>Quilometragem *</Label>
-          <Input placeholder="Ex: 25000" type="number" value={form.quilometragem} onChange={e => updateForm("quilometragem", e.target.value)} />
+          <Input placeholder="Ex: 25000" type="number" value={form.quilometragem} onChange={(e) => updateForm("quilometragem", e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Combustível</Label>
-          <Select value={form.combustivel} onValueChange={v => updateForm("combustivel", v)}>
+          <Label>Combustível *</Label>
+          <Select value={form.combustivel} onValueChange={(v) => updateForm("combustivel", v)}>
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{COMBUSTIVEIS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {COMBUSTIVEIS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Câmbio</Label>
-          <Select value={form.cambio} onValueChange={v => updateForm("cambio", v)}>
+          <Label>Câmbio *</Label>
+          <Select value={form.cambio} onValueChange={(v) => updateForm("cambio", v)}>
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{CAMBIOS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {CAMBIOS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           <Label>Cor</Label>
-          <Select value={form.cor} onValueChange={v => updateForm("cor", v)}>
+          <Select value={form.cor} onValueChange={(v) => updateForm("cor", v)}>
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {CORES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           <Label>Potência</Label>
-          <Input placeholder="Ex: 177 cv" value={form.potencia} onChange={e => updateForm("potencia", e.target.value)} />
+          <Input placeholder="Ex: 177 cv" value={form.potencia} onChange={(e) => updateForm("potencia", e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Cidade</Label>
-          <Input placeholder="Ex: São Paulo" value={form.cidade} onChange={e => updateForm("cidade", e.target.value)} />
+          <Label>Cidade *</Label>
+          <Input placeholder="Ex: São Paulo" value={form.cidade} onChange={(e) => updateForm("cidade", e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Estado</Label>
-          <Input placeholder="Ex: SP" value={form.estado} onChange={e => updateForm("estado", e.target.value)} />
+          <Label>Estado *</Label>
+          <Input placeholder="Ex: SP" maxLength={2} value={form.estado} onChange={(e) => updateForm("estado", e.target.value.toUpperCase())} />
+        </div>
+        <div className="space-y-2">
+          <Label>Condição do veículo</Label>
+          <Select value={form.condicao} onValueChange={(v) => updateForm("condicao", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CONDICOES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -271,7 +415,7 @@ function StepVehicleData({ form, updateForm, toggleOpcional }: any) {
         <Label className="text-base font-semibold">Opcionais</Label>
         <p className="text-sm text-muted-foreground mb-3">Selecione os itens do veículo</p>
         <div className="flex flex-wrap gap-2">
-          {OPCIONAIS_LIST.map(op => (
+          {OPCIONAIS_LIST.map((op) => (
             <Badge
               key={op}
               variant={form.opcionais.includes(op) ? "default" : "outline"}
@@ -292,21 +436,26 @@ function StepVehicleData({ form, updateForm, toggleOpcional }: any) {
 }
 
 /* ──────────── Step 2: Photos ──────────── */
-function StepPhotos({ form, addPhoto, removePhoto }: any) {
+function StepPhotos({ form, addPhoto, removePhoto }: {
+  form: FormData;
+  addPhoto: () => void;
+  removePhoto: (idx: number) => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">Fotos do Veículo</h2>
-        <p className="text-muted-foreground mt-1">Adicione até 20 fotos do seu veículo</p>
+        <p className="text-muted-foreground mt-1">Adicione fotos do seu veículo (opcional — upload real no Módulo 5)</p>
       </div>
 
       <Card className="border-dashed border-2 border-primary/30 bg-primary/5">
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Upload className="h-10 w-10 text-primary mb-3" />
-          <p className="font-semibold text-foreground">Arraste suas fotos aqui</p>
-          <p className="text-sm text-muted-foreground mb-4">JPG, PNG ou WEBP até 10MB cada</p>
+          <p className="font-semibold text-foreground">Upload de fotos</p>
+          <p className="text-sm text-muted-foreground mb-1">Upload real disponível no Módulo 5</p>
+          <p className="text-xs text-muted-foreground mb-4">Por enquanto, adicione fotos de demonstração</p>
           <Button variant="outline" onClick={addPhoto}>
-            <Camera className="h-4 w-4 mr-2" /> Selecionar Fotos (Simulado)
+            <Camera className="h-4 w-4 mr-2" /> Adicionar foto de demo
           </Button>
         </CardContent>
       </Card>
@@ -318,7 +467,7 @@ function StepPhotos({ form, addPhoto, removePhoto }: any) {
             <Badge variant="outline">{form.fotos.length}/20</Badge>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {form.fotos.map((foto: string, idx: number) => (
+            {form.fotos.map((foto, idx) => (
               <div key={idx} className="relative group rounded-xl overflow-hidden aspect-[4/3]">
                 <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
                 {idx === 0 && (
@@ -353,38 +502,33 @@ function StepPhotos({ form, addPhoto, removePhoto }: any) {
 }
 
 /* ──────────── Step 3: VenStudio IA ──────────── */
-function StepStudio({ form, processing, onProcess }: any) {
+function StepStudio({ form, processing, onProcess }: {
+  form: FormData;
+  processing: boolean;
+  onProcess: () => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
           <Wand2 className="h-6 w-6 text-primary" /> VenStudio IA
         </h2>
-        <p className="text-muted-foreground mt-1">
-          Transforme suas fotos em imagens profissionais com IA
-        </p>
+        <p className="text-muted-foreground mt-1">Transforme suas fotos em imagens profissionais com IA</p>
       </div>
 
       {form.fotos.length === 0 ? (
         <Card className="bg-muted/30">
           <CardContent className="flex flex-col items-center py-12 text-center">
-            <AlertTriangle className="h-10 w-10 text-trust-medium mb-3" />
+            <ImageIcon className="h-10 w-10 text-muted-foreground mb-3" />
             <p className="font-semibold">Nenhuma foto adicionada</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Volte à etapa anterior para adicionar fotos
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Volte à etapa anterior para adicionar fotos</p>
           </CardContent>
         </Card>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {["Showroom Premium", "Fundo Neutro", "Cenário Urbano"].map((cenario, i) => (
-              <Card
-                key={cenario}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  i === 0 ? "ring-2 ring-primary" : ""
-                }`}
-              >
+              <Card key={cenario} className={`cursor-pointer transition-all hover:shadow-md ${i === 0 ? "ring-2 ring-primary" : ""}`}>
                 <CardContent className="p-4 text-center">
                   <div className="h-24 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center mb-3">
                     <ImageIcon className="h-8 w-8 text-primary" />
@@ -408,11 +552,7 @@ function StepStudio({ form, processing, onProcess }: any) {
                     Remoção de fundo, correção de luz e aplicação de cenário
                   </p>
                 </div>
-                <Button
-                  onClick={onProcess}
-                  disabled={processing || form.studioProcessed}
-                  className="bg-primary hover:bg-primary/90"
-                >
+                <Button onClick={onProcess} disabled={processing || form.studioProcessed} className="bg-primary hover:bg-primary/90">
                   {processing ? (
                     <span className="flex items-center gap-2">
                       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
@@ -421,22 +561,18 @@ function StepStudio({ form, processing, onProcess }: any) {
                       Processando...
                     </span>
                   ) : form.studioProcessed ? (
-                    <span className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" /> Processado
-                    </span>
+                    <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Processado</span>
                   ) : (
                     "Aplicar VenStudio"
                   )}
                 </Button>
               </div>
-
               {processing && (
                 <div className="mt-4">
                   <Progress value={65} className="h-2" />
                   <p className="text-xs text-muted-foreground mt-1">Removendo fundo e aplicando cenário...</p>
                 </div>
               )}
-
               {form.studioProcessed && (
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div>
@@ -462,7 +598,12 @@ function StepStudio({ form, processing, onProcess }: any) {
 }
 
 /* ──────────── Step 4: AI Copilot ──────────── */
-function StepCopilot({ form, updateForm, generating, onGenerate }: any) {
+function StepCopilot({ form, updateForm, generating, onGenerate }: {
+  form: FormData;
+  updateForm: (f: keyof FormData, v: unknown) => void;
+  generating: boolean;
+  onGenerate: () => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -489,9 +630,7 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: any) {
                 <Sparkles className="h-4 w-4" />
               </motion.div>
             ) : (
-              <>
-                <Wand2 className="h-4 w-4 mr-1" /> Gerar
-              </>
+              <><Wand2 className="h-4 w-4 mr-1" /> Gerar</>
             )}
           </Button>
         </CardContent>
@@ -502,7 +641,7 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: any) {
         <Textarea
           placeholder="Descreva seu veículo ou use a IA para gerar..."
           value={form.descricao}
-          onChange={e => updateForm("descricao", e.target.value)}
+          onChange={(e) => updateForm("descricao", e.target.value)}
           rows={8}
           className="resize-none"
         />
@@ -526,11 +665,18 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: any) {
 }
 
 /* ──────────── Step 5: Pricing ──────────── */
-function StepPricing({ form, updateForm }: any) {
+function StepPricing({ form, updateForm }: {
+  form: FormData;
+  updateForm: (f: keyof FormData, v: unknown) => void;
+}) {
   const precoNum = Number(form.preco) || 0;
   const sugeridoMin = 95000;
   const sugeridoMax = 115000;
-  const status = precoNum === 0 ? null : precoNum < sugeridoMin ? "abaixo" : precoNum > sugeridoMax ? "acima" : "na_media";
+  const status =
+    precoNum === 0 ? null
+    : precoNum < sugeridoMin ? "abaixo"
+    : precoNum > sugeridoMax ? "acima"
+    : "na_media";
 
   return (
     <div className="space-y-6">
@@ -539,6 +685,7 @@ function StepPricing({ form, updateForm }: any) {
         <p className="text-muted-foreground mt-1">A Ventoro IA analisa o mercado para recomendar o melhor preço</p>
       </div>
 
+      {/* Análise de mercado decorativa */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -574,7 +721,7 @@ function StepPricing({ form, updateForm }: any) {
           type="number"
           placeholder="Ex: 105000"
           value={form.preco}
-          onChange={e => updateForm("preco", e.target.value)}
+          onChange={(e) => updateForm("preco", e.target.value)}
           className="text-xl font-bold font-[family-name:var(--font-mono)]"
         />
         {status && (
@@ -583,30 +730,93 @@ function StepPricing({ form, updateForm }: any) {
             status === "acima" ? "text-trust-low border-trust-low" :
             "text-primary border-primary"
           }>
-            {status === "abaixo" ? "Abaixo da média — venda rápida" :
-             status === "acima" ? "Acima da média — pode demorar mais" :
-             "Dentro da faixa ideal ✓"}
+            {status === "abaixo" ? "Abaixo da média — venda rápida"
+              : status === "acima" ? "Acima da média — pode demorar mais"
+              : "Dentro da faixa ideal ✓"}
           </Badge>
         )}
       </div>
 
-      <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-        <div>
-          <p className="font-medium text-sm">Aceita troca?</p>
-          <p className="text-xs text-muted-foreground">Habilite se considerar propostas de troca</p>
+      {/* Documentação e condições */}
+      <div className="rounded-xl border border-border bg-background p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <FileText className="h-4 w-4 text-primary" />
+          <Label className="text-base font-semibold">Documentação e condições</Label>
         </div>
-        <Switch checked={form.aceitaTroca} onCheckedChange={v => updateForm("aceitaTroca", v)} />
+
+        {[
+          { field: "ipva_pago" as const, label: "IPVA pago", desc: "IPVA do ano atual quitado" },
+          { field: "revisoes_em_dia" as const, label: "Revisões em dia", desc: "Revisões periódicas realizadas" },
+          { field: "sem_sinistro" as const, label: "Sem sinistro", desc: "Nunca batido ou sinistrado" },
+          { field: "aceitaTroca" as const, label: "Aceita troca", desc: "Considero propostas de troca" },
+        ].map((item) => (
+          <div key={item.field} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+            <div>
+              <p className="font-medium text-sm">{item.label}</p>
+              <p className="text-xs text-muted-foreground">{item.desc}</p>
+            </div>
+            <Switch
+              checked={form[item.field] as boolean}
+              onCheckedChange={(v) => updateForm(item.field, v)}
+            />
+          </div>
+        ))}
+
+        <div className="flex items-center justify-between py-2">
+          <div>
+            <p className="font-medium text-sm">Número de chaves</p>
+            <p className="text-xs text-muted-foreground">Quantas chaves acompanham o veículo</p>
+          </div>
+          <Select
+            value={String(form.num_chaves)}
+            onValueChange={(v) => updateForm("num_chaves", parseInt(v, 10))}
+          >
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1</SelectItem>
+              <SelectItem value="2">2</SelectItem>
+              <SelectItem value="3">3+</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ──────────── Step 6: Plan Selection ──────────── */
-function StepPlan({ form, updateForm }: any) {
+function StepPlan({ form, updateForm, user }: {
+  form: FormData;
+  updateForm: (f: keyof FormData, v: unknown) => void;
+  user: ReturnType<typeof useAuth>["user"];
+}) {
+  const isGaragem = user?.user_metadata?.tipo === "garagem";
+
   const plans = [
-    { id: "gratis", name: "Grátis", price: "R$ 0", desc: "Anúncio básico por 30 dias", features: ["1 foto", "Listagem padrão", "30 dias de duração"] },
-    { id: "destaque", name: "Destaque", price: "R$ 49,90", desc: "Mais visibilidade e recursos", features: ["20 fotos", "Selo destaque", "VenStudio IA incluso", "Landing page", "60 dias de duração"], recommended: true },
-    { id: "premium", name: "Premium", price: "R$ 99,90", desc: "Máxima exposição e IA completa", features: ["20 fotos + vídeo", "Destaque na home", "VenStudio + Copiloto IA", "Landing page premium", "Relatório de leads", "90 dias de duração"] },
+    {
+      id: "basico",
+      name: "Grátis",
+      price: "R$ 0",
+      desc: "Anúncio básico por 30 dias",
+      features: ["1 foto", "Listagem padrão", "30 dias de duração"],
+    },
+    {
+      id: "premium",
+      name: "Destaque",
+      price: isGaragem ? "Incluso no plano" : "R$ 49,90",
+      desc: "Mais visibilidade e recursos",
+      features: ["20 fotos", "Selo destaque", "VenStudio IA incluso", "Landing page", "60 dias de duração"],
+      recommended: true,
+    },
+    {
+      id: "turbo",
+      name: "Premium",
+      price: isGaragem ? "Incluso no plano" : "R$ 99,90",
+      desc: "Máxima exposição e IA completa",
+      features: ["20 fotos + vídeo", "Destaque na home", "VenStudio + Copiloto IA", "Landing page premium", "Relatório de leads", "90 dias de duração"],
+    },
   ];
 
   return (
@@ -617,7 +827,7 @@ function StepPlan({ form, updateForm }: any) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {plans.map(plan => (
+        {plans.map((plan) => (
           <Card
             key={plan.id}
             className={`cursor-pointer transition-all hover:shadow-lg relative ${
@@ -632,15 +842,15 @@ function StepPlan({ form, updateForm }: any) {
             )}
             <CardContent className="p-6 text-center">
               <Crown className={`h-8 w-8 mx-auto mb-3 ${
-                plan.id === "premium" ? "text-trust-medium" :
-                plan.id === "destaque" ? "text-primary" : "text-muted-foreground"
+                plan.id === "turbo" ? "text-trust-medium" :
+                plan.id === "premium" ? "text-primary" : "text-muted-foreground"
               }`} />
               <h3 className="text-lg font-bold">{plan.name}</h3>
               <p className="text-2xl font-bold font-[family-name:var(--font-mono)] text-primary mt-1">{plan.price}</p>
               <p className="text-xs text-muted-foreground mt-1">{plan.desc}</p>
               <Separator className="my-4" />
               <ul className="space-y-2 text-sm text-left">
-                {plan.features.map(f => (
+                {plan.features.map((f) => (
                   <li key={f} className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                     <span>{f}</span>
@@ -659,7 +869,11 @@ function StepPlan({ form, updateForm }: any) {
 }
 
 /* ──────────── Step 7: Success ──────────── */
-function StepSuccess({ form, navigate }: any) {
+function StepSuccess({ form, navigate, slug }: {
+  form: FormData;
+  navigate: (path: string) => void;
+  slug: string | null;
+}) {
   return (
     <div className="text-center py-12">
       <motion.div
@@ -697,14 +911,19 @@ function StepSuccess({ form, navigate }: any) {
             <CardContent className="p-4 text-center">
               <Sparkles className="h-5 w-5 text-primary mx-auto mb-1" />
               <p className="text-xs text-muted-foreground">IA ativa</p>
-              <p className="font-bold text-sm">Sim</p>
+              <p className="font-bold text-sm">{form.studioProcessed ? "Sim" : "Não"}</p>
             </CardContent>
           </Card>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
-          <Button onClick={() => navigate("/minha-conta/anuncios")} className="bg-primary hover:bg-primary/90">
-            Ver Meus Anúncios <ArrowRight className="h-4 w-4 ml-2" />
+          {slug && (
+            <Button onClick={() => navigate(`/veiculo/${slug}`)} className="bg-primary hover:bg-primary/90">
+              Ver meu anúncio <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => navigate("/minha-conta/anuncios")}>
+            Ver todos os anúncios
           </Button>
           <Button variant="outline" onClick={() => navigate("/")}>
             Voltar à Home
