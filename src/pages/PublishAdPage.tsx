@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -99,8 +99,14 @@ function validarStep(step: number, form: FormData): string | null {
 
 export default function PublishAdPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { publicar, loading: publicando, error: publishError } = usePublicarVeiculo();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/entrar')
+    }
+  }, [user, authLoading, navigate])
 
   const [step, setStep] = useState(1);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -202,6 +208,8 @@ export default function PublishAdPage() {
   };
 
   const isPublishStep = step === 6;
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen bg-background">

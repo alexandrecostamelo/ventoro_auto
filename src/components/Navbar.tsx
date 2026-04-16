@@ -16,7 +16,7 @@ const navLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const location = useLocation();
   const isHome = location.pathname === "/";
 
@@ -58,16 +58,22 @@ export function Navbar() {
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
-          {isAuthenticated ? (
+          {!!user ? (
             <div className="flex items-center gap-3">
               <Link to="/minha-conta" className="flex items-center gap-2">
-                <img src={user?.avatar_url} alt={user?.nome} className="h-8 w-8 rounded-full" />
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.nome} className="h-8 w-8 rounded-full object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
+                    {profile?.nome?.charAt(0).toUpperCase() ?? "?"}
+                  </div>
+                )}
                 <span className="text-small font-medium text-white">
-                  {user?.nome}
+                  {profile?.nome}
                 </span>
               </Link>
               <button
-                onClick={logout}
+                onClick={signOut}
                 className="text-small transition-colors text-white/60 hover:text-white"
               >
                 Sair
@@ -121,12 +127,12 @@ export function Navbar() {
               </Link>
             ))}
             <hr className="border-border my-2" />
-            {isAuthenticated ? (
+            {!!user ? (
               <>
                 <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="text-body text-text-primary font-medium">
-                  Minha conta
+                  {profile?.nome ?? "Minha conta"}
                 </Link>
-                <button onClick={() => { logout(); setMenuOpen(false); }} className="text-body text-text-secondary text-left">
+                <button onClick={() => { signOut(); setMenuOpen(false); }} className="text-body text-text-secondary text-left">
                   Sair
                 </button>
               </>
