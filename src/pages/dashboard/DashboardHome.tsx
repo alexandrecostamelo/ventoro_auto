@@ -236,7 +236,11 @@ export default function DashboardHome() {
                       >
                         Ver
                       </Link>
-                      <button className="rounded-full border border-border px-4 py-1.5 text-micro font-medium text-text-secondary hover:bg-surface-secondary transition-colors">
+                      <button
+                        disabled
+                        title="Edição de anúncio em breve"
+                        className="rounded-full border border-border px-4 py-1.5 text-micro font-medium text-text-secondary opacity-40 cursor-not-allowed"
+                      >
                         Editar
                       </button>
                     </div>

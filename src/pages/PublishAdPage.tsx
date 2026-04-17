@@ -290,7 +290,12 @@ export default function PublishAdPage() {
               />
             )}
             {step === 3 && (
-              <StepStudio form={form} processing={studioProcessing} onProcess={simulateStudio} />
+              <StepStudio
+                previews={fotoPreviews}
+                studioProcessed={form.studioProcessed}
+                processing={studioProcessing}
+                onProcess={simulateStudio}
+              />
             )}
             {step === 4 && (
               <StepCopilot form={form} updateForm={updateForm} generating={aiGenerating} onGenerate={simulateAI} />
@@ -614,8 +619,9 @@ function StepPhotos({
 }
 
 /* ──────────── Step 3: VenStudio IA ──────────── */
-function StepStudio({ form, processing, onProcess }: {
-  form: FormData;
+function StepStudio({ previews, studioProcessed, processing, onProcess }: {
+  previews: string[];
+  studioProcessed: boolean;
   processing: boolean;
   onProcess: () => void;
 }) {
@@ -628,7 +634,7 @@ function StepStudio({ form, processing, onProcess }: {
         <p className="text-muted-foreground mt-1">Transforme suas fotos em imagens profissionais com IA</p>
       </div>
 
-      {form.fotos.length === 0 ? (
+      {previews.length === 0 ? (
         <Card className="bg-muted/30">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <ImageIcon className="h-10 w-10 text-muted-foreground mb-3" />
@@ -658,13 +664,13 @@ function StepStudio({ form, processing, onProcess }: {
                 <div>
                   <p className="font-semibold flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Processar {form.fotos.length} foto(s) com VenStudio IA
+                    Processar {previews.length} foto(s) com VenStudio IA
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Remoção de fundo, correção de luz e aplicação de cenário
                   </p>
                 </div>
-                <Button onClick={onProcess} disabled={processing || form.studioProcessed} className="bg-primary hover:bg-primary/90">
+                <Button onClick={onProcess} disabled={processing || studioProcessed} className="bg-primary hover:bg-primary/90">
                   {processing ? (
                     <span className="flex items-center gap-2">
                       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
@@ -672,7 +678,7 @@ function StepStudio({ form, processing, onProcess }: {
                       </motion.div>
                       Processando...
                     </span>
-                  ) : form.studioProcessed ? (
+                  ) : studioProcessed ? (
                     <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Processado</span>
                   ) : (
                     "Aplicar VenStudio"
@@ -685,18 +691,18 @@ function StepStudio({ form, processing, onProcess }: {
                   <p className="text-xs text-muted-foreground mt-1">Removendo fundo e aplicando cenário...</p>
                 </div>
               )}
-              {form.studioProcessed && (
+              {studioProcessed && (
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">Antes</p>
                     <div className="rounded-lg overflow-hidden aspect-[4/3] bg-muted">
-                      <img src={form.fotos[0]} alt="Antes" className="w-full h-full object-cover opacity-70" />
+                      <img src={previews[0]} alt="Antes" className="w-full h-full object-cover opacity-70" />
                     </div>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-primary mb-2">Depois ✨</p>
                     <div className="rounded-lg overflow-hidden aspect-[4/3] bg-gradient-to-br from-primary/10 to-primary/5">
-                      <img src={form.fotos[0]} alt="Depois" className="w-full h-full object-cover" />
+                      <img src={previews[0]} alt="Depois" className="w-full h-full object-cover" />
                     </div>
                   </div>
                 </div>

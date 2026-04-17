@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { vehicles as mockVehicles, formatPrice, formatKm } from "@/data/mock";
 import { Link } from "react-router-dom";
-import { Eye, Users, Heart, Plus, Pause, Play, Trash2, ExternalLink } from "lucide-react";
+import { Eye, Users, Heart, Plus, Pause, Play, Trash2, ExternalLink, Pencil } from "lucide-react";
 import { USE_REAL_DATA } from "@/config/flags";
 import { useVeiculosAnunciante, fotoCapa } from "@/hooks/useVeiculosAnunciante";
 import { formatarPreco, formatarKm } from "@/utils/formatters";
@@ -167,6 +167,13 @@ export default function DashboardAds() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        disabled
+                        title="Edição de anúncio em breve"
+                        className="rounded-lg border border-border p-2 text-text-muted opacity-40 cursor-not-allowed"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <Link
                         to={`/veiculo/${v.slug}`}
                         className="rounded-lg border border-border p-2 text-text-muted hover:text-brand hover:border-brand transition-colors"
