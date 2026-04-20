@@ -1,95 +1,118 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Wand2, Upload, Camera, X, ChevronRight, CheckCircle2, Sparkles,
-  Download, RotateCcw, SlidersHorizontal, Image as ImageIcon,
-  Building2, Trees, Palette, Sun, Layers, ArrowRight, GripVertical
+  Wand2, X, ChevronRight, CheckCircle2, Sparkles,
+  RotateCcw, Image as ImageIcon,
+  GripVertical, AlertTriangle, Car, ChevronLeft,
+  Save, Trash2, ExternalLink, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Navbar } from "@/components/Navbar";
+import { useAuth } from "@/contexts/AuthContext";
+import { useVeiculosAnunciante, fotoCapa, type VeiculoAnunciante } from "@/hooks/useVeiculosAnunciante";
+import { useVenStudio, CENARIOS_VENSTUDIO, type CenarioId, type FotoProcessamento } from "@/hooks/useVenStudio";
+import { supabase } from "@/lib/supabase";
 
-const SCENARIOS = [
-  { id: "showroom", name: "Showroom Premium", icon: Building2, desc: "Fundo profissional de concessionária", gradient: "from-slate-800 to-slate-900" },
-  { id: "neutro", name: "Fundo Neutro", icon: Layers, desc: "Fundo limpo branco ou cinza", gradient: "from-gray-200 to-gray-300" },
-  { id: "urbano", name: "Cenário Urbano", icon: Building2, desc: "Paisagem urbana moderna", gradient: "from-blue-900 to-indigo-900" },
-  { id: "natureza", name: "Natureza", icon: Trees, desc: "Cenário natural e verde", gradient: "from-emerald-800 to-green-900" },
-  { id: "sunset", name: "Golden Hour", icon: Sun, desc: "Iluminação dourada ao pôr do sol", gradient: "from-amber-600 to-orange-700" },
-  { id: "studio", name: "Estúdio 360°", icon: Palette, desc: "Iluminação de estúdio profissional", gradient: "from-zinc-700 to-zinc-800" },
-];
+type Phase = "select" | "scenario" | "processing" | "result";
 
-const ENHANCEMENTS = [
-  { id: "bg_remove", label: "Remover fundo", active: true },
-  { id: "light_fix", label: "Correção de luz", active: true },
-  { id: "color_enhance", label: "Realce de cores", active: true },
-  { id: "reflection", label: "Reflexo no piso", active: false },
-  { id: "shadow", label: "Sombra realista", active: true },
-];
-
-const MOCK_IMAGES = [
-  "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800",
-  "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
-  "https://images.unsplash.com/photo-1542362567-b07e54358753?w=800",
-  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800",
-];
-
-type Phase = "upload" | "scenario" | "processing" | "result";
+interface FotoVeiculo {
+  id: string;
+  url_original: string;
+  url_processada: string | null;
+  processada_por_ia: boolean;
+  ordem: number;
+  is_capa: boolean;
+}
 
 export default function VenStudioPage() {
-  const [phase, setPhase] = useState<Phase>("upload");
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [selectedScenario, setSelectedScenario] = useState("showroom");
-  const [enhancements, setEnhancements] = useState(ENHANCEMENTS);
-  const [processProgress, setProcessProgress] = useState(0);
-  const [processedIndex, setProcessedIndex] = useState(0);
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { veiculos, loading: veiculosLoading } = useVeiculosAnunciante();
+  const venStudio = useVenStudio();
 
-  const addMockPhoto = () => {
-    if (photos.length < 20) {
-      const next = MOCK_IMAGES[photos.length % MOCK_IMAGES.length];
-      setPhotos(prev => [...prev, next]);
-    }
-  };
+  const [phase, setPhase] = useState<Phase>("select");
+  const [selectedVeiculo, setSelectedVeiculo] = useState<VeiculoAnunciante | null>(null);
+  const [fotosVeiculo, setFotosVeiculo] = useState<FotoVeiculo[]>([]);
+  const [loadingFotos, setLoadingFotos] = useState(false);
 
-  const removePhoto = (idx: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== idx));
-  };
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/entrar");
+  }, [user, authLoading, navigate]);
 
-  const toggleEnhancement = (id: string) => {
-    setEnhancements(prev => prev.map(e => e.id === id ? { ...e, active: !e.active } : e));
+  // Carregar uso ao montar
+  useEffect(() => {
+    if (user) venStudio.carregarUso();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSelectVeiculo = async (v: VeiculoAnunciante) => {
+    setSelectedVeiculo(v);
+    setLoadingFotos(true);
+
+    const { data } = await supabase
+      .from("fotos_veiculo")
+      .select("id, url_original, url_processada, processada_por_ia, ordem, is_capa")
+      .eq("veiculo_id", v.id)
+      .order("ordem");
+
+    const fotos = (data ?? []) as FotoVeiculo[];
+    setFotosVeiculo(fotos);
+
+    // Preparar fotos para o hook
+    venStudio.setFotos(
+      fotos.map((f) => ({
+        fotoUrl: f.url_original,
+        fotoId: f.id,
+        status: "pendente" as const,
+      }))
+    );
+
+    setLoadingFotos(false);
+    setPhase("scenario");
   };
 
   const startProcessing = () => {
+    if (!selectedVeiculo) return;
     setPhase("processing");
-    setProcessProgress(0);
-    setProcessedIndex(0);
-    const total = photos.length;
-    let current = 0;
-    const interval = setInterval(() => {
-      current++;
-      setProcessProgress(Math.round((current / total) * 100));
-      setProcessedIndex(current);
-      if (current >= total) {
-        clearInterval(interval);
-        setTimeout(() => setPhase("result"), 600);
-      }
-    }, 1200);
+    venStudio.processarTodas(selectedVeiculo.id);
   };
 
+  // Detectar quando todas as fotos terminaram
+  useEffect(() => {
+    if (phase !== "processing") return;
+    const allDone = venStudio.fotos.length > 0 && venStudio.fotos.every(
+      (f) => f.status === "concluido" || f.status === "erro"
+    );
+    if (allDone) {
+      setTimeout(() => setPhase("result"), 600);
+    }
+  }, [venStudio.fotos, phase]);
+
   const reset = () => {
-    setPhase("upload");
-    setPhotos([]);
-    setProcessProgress(0);
-    setProcessedIndex(0);
+    setPhase("select");
+    setSelectedVeiculo(null);
+    setFotosVeiculo([]);
+    venStudio.setFotos([]);
   };
+
+  if (authLoading) return null;
+
+  // ══════════════════════════════════════════════════════════════════
+  // VENSTUDIO DESABILITADO — RISCO LEGAL (CDC Art. 37)
+  // Pipeline generativo altera características do veículo (emblema,
+  // rodas, faróis, placa). Reabilitar somente após pipeline
+  // determinístico (segmentação + composição Sharp) com fingerprint.
+  // Ver docs/venstudio-arquitetura.md
+  // ══════════════════════════════════════════════════════════════════
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero Header */}
       <div className="bg-gradient-to-br from-primary/10 via-background to-accent/10 border-b border-border">
         <div className="max-w-5xl mx-auto px-4 py-10 text-center">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-4">
@@ -98,159 +121,161 @@ export default function VenStudioPage() {
           <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-display)]">
             Transforme suas fotos em imagens profissionais
           </h1>
-          <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
-            Remoção de fundo, cenários premium e correções automáticas com inteligência artificial
-          </p>
-
-          {/* Phase Indicator */}
-          {phase !== "upload" && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              {(["upload", "scenario", "processing", "result"] as Phase[]).map((p, i) => (
-                <div key={p} className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                    phase === p ? "bg-primary text-primary-foreground scale-110" :
-                    (["upload", "scenario", "processing", "result"].indexOf(phase) > i)
-                      ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                  }`}>
-                    {i + 1}
-                  </div>
-                  {i < 3 && <div className={`w-8 h-0.5 ${
-                    (["upload", "scenario", "processing", "result"].indexOf(phase) > i) ? "bg-primary" : "bg-muted"
-                  }`} />}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <AnimatePresence mode="wait">
-          {phase === "upload" && (
-            <UploadPhase
-              key="upload"
-              photos={photos}
-              addPhoto={addMockPhoto}
-              removePhoto={removePhoto}
-              onNext={() => setPhase("scenario")}
-            />
-          )}
-          {phase === "scenario" && (
-            <ScenarioPhase
-              key="scenario"
-              selected={selectedScenario}
-              onSelect={setSelectedScenario}
-              enhancements={enhancements}
-              toggleEnhancement={toggleEnhancement}
-              photoCount={photos.length}
-              onBack={() => setPhase("upload")}
-              onProcess={startProcessing}
-            />
-          )}
-          {phase === "processing" && (
-            <ProcessingPhase
-              key="processing"
-              progress={processProgress}
-              processedIndex={processedIndex}
-              total={photos.length}
-              scenario={SCENARIOS.find(s => s.id === selectedScenario)!.name}
-            />
-          )}
-          {phase === "result" && (
-            <ResultPhase
-              key="result"
-              photos={photos}
-              scenario={SCENARIOS.find(s => s.id === selectedScenario)!}
-              onReset={reset}
-            />
-          )}
-        </AnimatePresence>
+      <div className="max-w-2xl mx-auto px-4 py-16">
+        <Card className="border-warning bg-warning/5">
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="h-12 w-12 text-warning mx-auto mb-4" />
+            <h2 className="text-xl font-bold font-[family-name:var(--font-display)] mb-2">
+              VenStudio em manutenção técnica
+            </h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-6">
+              Estamos aprimorando nosso processamento de imagens para garantir
+              fidelidade total ao seu veículo. Seus anúncios continuam ativos
+              com as fotos originais.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Voltaremos em breve com processamento que preserva seu veículo
+              pixel a pixel — apenas o fundo é alterado.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Button variant="outline" onClick={() => navigate(-1)}>
+                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+              </Button>
+              <Button onClick={() => navigate("/minha-conta/anuncios")}>
+                Meus anúncios
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
-/* ──── Upload Phase ──── */
-function UploadPhase({ photos, addPhoto, removePhoto, onNext }: {
-  photos: string[]; addPhoto: () => void; removePhoto: (i: number) => void; onNext: () => void;
+/* ──── Select Vehicle Phase ──── */
+function SelectPhase({ veiculos, loading, onSelect }: {
+  veiculos: VeiculoAnunciante[];
+  loading: boolean;
+  onSelect: (v: VeiculoAnunciante) => void;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-      <Card className="border-dashed border-2 border-primary/30 bg-primary/5">
-        <CardContent className="flex flex-col items-center justify-center py-16">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-            <Upload className="h-8 w-8 text-primary" />
-          </div>
-          <p className="font-semibold text-lg">Arraste suas fotos aqui</p>
-          <p className="text-sm text-muted-foreground mb-4">JPG, PNG ou WEBP • até 10MB cada • máx. 20 fotos</p>
-          <Button onClick={addPhoto} className="bg-primary hover:bg-primary/90">
-            <Camera className="h-4 w-4 mr-2" /> Selecionar Fotos (Simulado)
-          </Button>
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-xl font-bold font-[family-name:var(--font-display)] mb-1">Escolha um veículo</h2>
+        <p className="text-sm text-muted-foreground">Selecione o veículo cujas fotos você deseja processar com IA</p>
+      </div>
 
-      {photos.length > 0 && (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="font-semibold">{photos.length} foto(s) adicionada(s)</p>
-            <Badge variant="outline">{photos.length}/20</Badge>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {photos.map((photo, idx) => (
-              <div key={idx} className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-muted">
-                <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
-                <button
-                  onClick={() => removePhoto(idx)}
-                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-                <Badge className="absolute bottom-2 left-2 bg-background/80 text-foreground text-[10px]">{idx + 1}</Badge>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={onNext} className="bg-primary hover:bg-primary/90">
-              Escolher Cenário <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </>
+      {loading ? (
+        <div className="space-y-3 animate-pulse">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-background p-4 h-20" />
+          ))}
+        </div>
+      ) : veiculos.length === 0 ? (
+        <Card className="bg-muted/30">
+          <CardContent className="flex flex-col items-center py-12 text-center">
+            <Car className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="font-semibold">Nenhum veículo publicado</p>
+            <p className="text-sm text-muted-foreground mt-1">Publique um anúncio primeiro para usar o VenStudio</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {veiculos.map((v) => (
+            <Card
+              key={v.id}
+              onClick={() => onSelect(v)}
+              className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30"
+            >
+              <CardContent className="p-4 flex items-center gap-4">
+                <img
+                  src={fotoCapa(v)}
+                  alt={v.modelo}
+                  className="w-24 h-16 object-cover rounded-lg flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate">{v.marca} {v.modelo} {v.versao}</p>
+                  <p className="text-sm text-muted-foreground">{v.ano} · {v.fotos_veiculo.length} fotos</p>
+                </div>
+                {v.selo_studio_ia && (
+                  <Badge className="bg-primary/10 text-primary text-xs flex-shrink-0">
+                    <Wand2 className="h-3 w-3 mr-1" /> Processado
+                  </Badge>
+                )}
+                <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </motion.div>
   );
 }
 
 /* ──── Scenario Phase ──── */
-function ScenarioPhase({ selected, onSelect, enhancements, toggleEnhancement, photoCount, onBack, onProcess }: {
-  selected: string; onSelect: (id: string) => void; enhancements: typeof ENHANCEMENTS;
-  toggleEnhancement: (id: string) => void; photoCount: number; onBack: () => void; onProcess: () => void;
+function ScenarioPhase({ veiculo, fotos, cenario, melhorarQualidade, onCenarioChange, onMelhorarQualidadeChange, limiteAtingido, onBack, onProcess }: {
+  veiculo: VeiculoAnunciante;
+  fotos: FotoVeiculo[];
+  cenario: CenarioId;
+  melhorarQualidade: boolean;
+  onCenarioChange: (c: CenarioId) => void;
+  onMelhorarQualidadeChange: (v: boolean) => void;
+  limiteAtingido: boolean;
+  onBack: () => void;
+  onProcess: () => void;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-      <div>
-        <h2 className="text-xl font-bold font-[family-name:var(--font-display)] mb-1">Escolha o Cenário</h2>
-        <p className="text-sm text-muted-foreground">Selecione o fundo ideal para suas fotos</p>
+      {/* Vehicle info */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+        </Button>
+        <div>
+          <h2 className="text-xl font-bold font-[family-name:var(--font-display)]">
+            {veiculo.marca} {veiculo.modelo} {veiculo.versao}
+          </h2>
+          <p className="text-sm text-muted-foreground">{fotos.length} fotos disponíveis</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {SCENARIOS.map(s => {
-          const Icon = s.icon;
-          return (
+      {/* Fotos preview */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {fotos.map((f, i) => (
+          <div key={f.id} className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border border-border relative">
+            <img src={f.url_original} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+            {f.processada_por_ia && (
+              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Cenários */}
+      <div>
+        <h3 className="text-base font-semibold mb-3">Escolha o Cenário</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {CENARIOS_VENSTUDIO.map((s) => (
             <Card
               key={s.id}
-              onClick={() => onSelect(s.id)}
+              onClick={() => onCenarioChange(s.id)}
               className={`cursor-pointer transition-all hover:shadow-lg ${
-                selected === s.id ? "ring-2 ring-primary shadow-lg" : ""
+                cenario === s.id ? "ring-2 ring-primary shadow-lg" : ""
               }`}
             >
               <CardContent className="p-0">
                 <div className={`h-28 bg-gradient-to-br ${s.gradient} rounded-t-lg flex items-center justify-center`}>
-                  <Icon className="h-10 w-10 text-white/80" />
+                  <ImageIcon className="h-10 w-10 text-white/80" />
                 </div>
                 <div className="p-3">
-                  <p className="font-semibold text-sm">{s.name}</p>
+                  <p className="font-semibold text-sm">{s.nome}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{s.desc}</p>
-                  {selected === s.id && (
+                  {cenario === s.id && (
                     <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">
                       <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
                     </Badge>
@@ -258,51 +283,48 @@ function ScenarioPhase({ selected, onSelect, enhancements, toggleEnhancement, ph
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
-
-      {/* Enhancements */}
-      <div>
-        <h3 className="text-base font-semibold flex items-center gap-2 mb-3">
-          <SlidersHorizontal className="h-4 w-4 text-primary" /> Ajustes Automáticos
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {enhancements.map(e => (
-            <Badge
-              key={e.id}
-              variant={e.active ? "default" : "outline"}
-              className={`cursor-pointer transition-all px-3 py-1.5 ${
-                e.active ? "bg-primary text-primary-foreground hover:bg-primary/90" : "hover:bg-primary/10"
-              }`}
-              onClick={() => toggleEnhancement(e.id)}
-            >
-              {e.active && <CheckCircle2 className="h-3 w-3 mr-1" />}
-              {e.label}
-            </Badge>
           ))}
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Quality toggle */}
+      <Card>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" /> Melhorar qualidade (HD)
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">Brilho, contraste e nitidez otimizados</p>
+          </div>
+          <Switch checked={melhorarQualidade} onCheckedChange={onMelhorarQualidadeChange} />
+        </CardContent>
+      </Card>
+
+      {/* Limite warning */}
+      {limiteAtingido && (
+        <Card className="border-warning bg-warning/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
+            <p className="text-sm">Limite diário de 20 processamentos atingido. Tente novamente amanhã.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Process button */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="p-5 flex items-center justify-between">
           <div>
             <p className="font-semibold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              Processar {photoCount} foto(s)
+              Processar {fotos.length} foto(s)
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Cenário: {SCENARIOS.find(s => s.id === selected)?.name} •{" "}
-              {enhancements.filter(e => e.active).length} ajustes ativos
+              Cenário: {CENARIOS_VENSTUDIO.find((c) => c.id === cenario)?.nome} · As fotos originais são preservadas
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onBack}>Voltar</Button>
-            <Button onClick={onProcess} className="bg-primary hover:bg-primary/90">
-              <Wand2 className="h-4 w-4 mr-2" /> Processar com IA
-            </Button>
-          </div>
+          <Button onClick={onProcess} disabled={limiteAtingido || fotos.length === 0} className="bg-primary hover:bg-primary/90">
+            <Wand2 className="h-4 w-4 mr-2" /> Processar com IA
+          </Button>
         </CardContent>
       </Card>
     </motion.div>
@@ -310,11 +332,17 @@ function ScenarioPhase({ selected, onSelect, enhancements, toggleEnhancement, ph
 }
 
 /* ──── Processing Phase ──── */
-function ProcessingPhase({ progress, processedIndex, total, scenario }: {
-  progress: number; processedIndex: number; total: number; scenario: string;
+function ProcessingPhase({ fotos, progresso, cenario }: {
+  fotos: FotoProcessamento[];
+  progresso: number;
+  cenario: string;
 }) {
-  const steps = ["Analisando imagem...", "Removendo fundo...", "Aplicando cenário...", "Corrigindo iluminação...", "Finalizando..."];
-  const currentStep = steps[Math.min(Math.floor((progress / 100) * steps.length), steps.length - 1)];
+  const total = fotos.length;
+  const done = fotos.filter((f) => f.status === "concluido" || f.status === "erro").length;
+  const currentIndex = fotos.findIndex((f) => f.status === "processando");
+
+  const steps = ["Baixando imagem...", "Removendo fundo...", "Aplicando cenário...", "Finalizando..."];
+  const stepIdx = Math.min(Math.floor((progresso / 100) * steps.length), steps.length - 1);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-lg mx-auto text-center py-16 space-y-8">
@@ -329,24 +357,27 @@ function ProcessingPhase({ progress, processedIndex, total, scenario }: {
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">VenStudio IA processando</h2>
         <p className="text-muted-foreground mt-1">
-          Cenário: <span className="font-medium text-foreground">{scenario}</span>
+          Cenário: <span className="font-medium text-foreground">{cenario}</span>
         </p>
       </div>
 
       <div className="space-y-2">
-        <Progress value={progress} className="h-3" />
+        <Progress value={progresso} className="h-3" />
         <div className="flex justify-between text-sm text-muted-foreground">
-          <span>{currentStep}</span>
-          <span>{processedIndex}/{total} fotos</span>
+          <span>{currentIndex >= 0 ? `Foto ${currentIndex + 1}: ${steps[stepIdx]}` : steps[stepIdx]}</span>
+          <span>{done}/{total} fotos</span>
         </div>
       </div>
 
       <div className="flex justify-center gap-1">
-        {Array.from({ length: total }).map((_, i) => (
+        {fotos.map((f, i) => (
           <div
             key={i}
             className={`w-3 h-3 rounded-full transition-all ${
-              i < processedIndex ? "bg-primary scale-100" : "bg-muted scale-75"
+              f.status === "concluido" ? "bg-primary scale-100"
+                : f.status === "erro" ? "bg-destructive scale-100"
+                : f.status === "processando" ? "bg-primary/50 scale-110 animate-pulse"
+                : "bg-muted scale-75"
             }`}
           />
         ))}
@@ -355,48 +386,132 @@ function ProcessingPhase({ progress, processedIndex, total, scenario }: {
   );
 }
 
-/* ──── Result Phase with Before/After Slider ──── */
-function ResultPhase({ photos, scenario, onReset }: {
-  photos: string[]; scenario: typeof SCENARIOS[number]; onReset: () => void;
+/* ──── Result Phase ──── */
+function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onReverter }: {
+  fotos: FotoProcessamento[];
+  fotosOriginais: FotoVeiculo[];
+  cenario: typeof CENARIOS_VENSTUDIO[number];
+  veiculo: VeiculoAnunciante;
+  onReset: () => void;
+  onReverter: (i: number) => void;
 }) {
+  const navigate = useNavigate();
   const [activePhoto, setActivePhoto] = useState(0);
+  const [deletando, setDeletando] = useState<number | null>(null);
+  const [salvoMsg, setSalvoMsg] = useState(false);
+  const fotosOk = fotos.filter((f) => f.status === "concluido").length;
+  const fotosErro = fotos.filter((f) => f.status === "erro").length;
+
+  const activeFoto = fotos[activePhoto];
+  const activeOriginal = fotosOriginais[activePhoto];
+
+  async function handleDeleteProcessada(idx: number) {
+    const foto = fotosOriginais[idx];
+    if (!foto) return;
+    setDeletando(idx);
+    // Reverter para a original no banco
+    await supabase
+      .from("fotos_veiculo")
+      .update({ url_processada: null, processada_por_ia: false, cenario_ia: null })
+      .eq("id", foto.id);
+    onReverter(idx);
+    setDeletando(null);
+  }
+
+  function handleSalvar() {
+    // As fotos já foram salvas automaticamente pela Edge Function
+    // Mostrar feedback visual
+    setSalvoMsg(true);
+    setTimeout(() => setSalvoMsg(false), 3000);
+  }
+
+  function handleVoltar() {
+    navigate(`/veiculo/${veiculo.slug}`);
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-primary" /> Processamento Concluído!
           </h2>
-          <p className="text-sm text-muted-foreground">{photos.length} fotos processadas com {scenario.name}</p>
+          <p className="text-sm text-muted-foreground">
+            {fotosOk} foto(s) processadas com {cenario.nome}
+            {fotosErro > 0 && ` · ${fotosErro} com erro`}
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={onReset}>
-            <RotateCcw className="h-4 w-4 mr-1" /> Novas Fotos
-          </Button>
-          <Button className="bg-primary hover:bg-primary/90">
-            <Download className="h-4 w-4 mr-1" /> Baixar Todas
+            <RotateCcw className="h-4 w-4 mr-1" /> Processar outro
           </Button>
         </div>
       </div>
 
       {/* Before/After Slider */}
-      <BeforeAfterSlider
-        before={photos[activePhoto]}
-        scenarioGradient={scenario.gradient}
-      />
+      {activeFoto?.urlProcessada && activeOriginal && (
+        <BeforeAfterSlider
+          before={activeOriginal.url_original}
+          after={activeFoto.urlProcessada}
+        />
+      )}
+
+      {activeFoto?.status === "erro" && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Erro ao processar esta foto</p>
+              <p className="text-xs text-muted-foreground">{activeFoto.erro}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action buttons for active photo */}
+      {activeFoto?.status === "concluido" && activeFoto.urlProcessada && (
+        <div className="flex gap-2">
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={deletando === activePhoto}
+            onClick={() => handleDeleteProcessada(activePhoto)}
+          >
+            {deletando === activePhoto ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-1" />
+            )}
+            Descartar esta foto processada
+          </Button>
+        </div>
+      )}
 
       {/* Thumbnails */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {photos.map((photo, idx) => (
+        {fotos.map((foto, idx) => (
           <button
             key={idx}
             onClick={() => setActivePhoto(idx)}
-            className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden transition-all ${
+            className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden transition-all relative ${
               activePhoto === idx ? "ring-2 ring-primary scale-105" : "opacity-60 hover:opacity-100"
             }`}
           >
-            <img src={photo} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+            <img
+              src={foto.urlProcessada ?? fotosOriginais[idx]?.url_original ?? foto.fotoUrl}
+              alt={`Foto ${idx + 1}`}
+              className="w-full h-full object-cover"
+            />
+            {foto.status === "concluido" && (
+              <div className="absolute bottom-0 right-0 bg-primary rounded-tl p-0.5">
+                <CheckCircle2 className="h-2.5 w-2.5 text-primary-foreground" />
+              </div>
+            )}
+            {foto.status === "erro" && (
+              <div className="absolute bottom-0 right-0 bg-destructive rounded-tl p-0.5">
+                <X className="h-2.5 w-2.5 text-destructive-foreground" />
+              </div>
+            )}
           </button>
         ))}
       </div>
@@ -404,11 +519,14 @@ function ResultPhase({ photos, scenario, onReset }: {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Fotos processadas", value: photos.length.toString() },
-          { label: "Fundo removido", value: "100%" },
-          { label: "Qualidade", value: "HD" },
-          { label: "Cenário", value: scenario.name },
-        ].map(stat => (
+          { label: "Processadas", value: `${fotosOk}/${fotos.length}` },
+          { label: "Cenário", value: cenario.nome },
+          { label: "Tempo médio", value: (() => {
+            const tempos = fotos.filter(f => f.tempoMs).map(f => f.tempoMs!);
+            return tempos.length > 0 ? `${(tempos.reduce((a, b) => a + b, 0) / tempos.length / 1000).toFixed(1)}s` : "-";
+          })() },
+          { label: "Erros", value: fotosErro.toString() },
+        ].map((stat) => (
           <Card key={stat.label} className="bg-primary/5">
             <CardContent className="p-4 text-center">
               <p className="text-xs text-muted-foreground">{stat.label}</p>
@@ -417,12 +535,35 @@ function ResultPhase({ photos, scenario, onReset }: {
           </Card>
         ))}
       </div>
+
+      {/* Bottom actions — Salvar e Voltar */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold flex items-center gap-2">
+              <Save className="h-4 w-4 text-primary" />
+              {salvoMsg ? "Fotos salvas no anúncio!" : "As fotos processadas já foram salvas automaticamente no seu anúncio."}
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {veiculo.marca} {veiculo.modelo} {veiculo.versao} — {fotosOk} foto(s) atualizadas
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleVoltar}>
+              <ExternalLink className="h-4 w-4 mr-1" /> Ver anúncio
+            </Button>
+            <Button onClick={handleSalvar} className="bg-primary hover:bg-primary/90">
+              <Save className="h-4 w-4 mr-1" /> {salvoMsg ? "Salvo!" : "Confirmar"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }
 
 /* ──── Before/After Comparison Slider ──── */
-function BeforeAfterSlider({ before, scenarioGradient }: { before: string; scenarioGradient: string }) {
+function BeforeAfterSlider({ before, after }: { before: string; after: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const isDragging = useRef(false);
@@ -454,14 +595,13 @@ function BeforeAfterSlider({ before, scenarioGradient }: { before: string; scena
       onTouchMove={handleTouchMove}
     >
       {/* "After" — full background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${scenarioGradient}`}>
-        <img src={before} alt="Depois" className="w-full h-full object-cover brightness-110 contrast-105 saturate-110" />
+      <div className="absolute inset-0">
+        <img src={after} alt="Depois" className="w-full h-full object-cover" />
       </div>
 
       {/* "Before" — clipped */}
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
-        <img src={before} alt="Antes" className="w-full h-full object-cover grayscale-[20%] brightness-90" />
-        <div className="absolute inset-0 bg-black/10" />
+        <img src={before} alt="Antes" className="w-full h-full object-cover" />
       </div>
 
       {/* Slider handle */}

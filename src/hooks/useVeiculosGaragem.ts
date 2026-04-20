@@ -75,5 +75,16 @@ export function useVeiculosGaragem(garagemId: string | null) {
     return { error: err }
   }
 
-  return { veiculos, metricas, contagens, atualizarStatus, loading, error, recarregar: carregar }
+  async function atualizarVeiculo(id: string, dados: Partial<VeiculoRow>) {
+    const { error: err } = await supabase
+      .from('veiculos')
+      .update(dados)
+      .eq('id', id)
+    if (!err) {
+      setVeiculos((prev) => prev.map((v) => (v.id === id ? { ...v, ...dados } : v)))
+    }
+    return { error: err }
+  }
+
+  return { veiculos, metricas, contagens, atualizarStatus, atualizarVeiculo, loading, error, recarregar: carregar }
 }

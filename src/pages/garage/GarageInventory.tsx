@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
-import { Eye, Users, Heart, Plus, Pause, Play, Trash2, Sparkles, Search, Check, DollarSign } from "lucide-react";
+import { Eye, Users, Heart, Plus, Pause, Play, Trash2, Sparkles, Search, Check, DollarSign, Pencil, X, Save, Loader2, Camera } from "lucide-react";
 import { useState } from "react";
 import { useMinhaGaragem } from "@/hooks/useMinhaGaragem";
 import { useVeiculosGaragem, fotoCapa } from "@/hooks/useVeiculosGaragem";
 import type { Database } from "@/types/database.types";
+import type { VeiculoAnunciante } from "@/hooks/useVeiculosAnunciante";
+import GerenciarFotosModal from "@/components/dashboard/GerenciarFotosModal";
 
 type VeiculoStatus = Database["public"]["Tables"]["veiculos"]["Row"]["status"];
 
@@ -37,11 +39,223 @@ function diasPublicado(iso: string | null): string {
   return String(dias);
 }
 
+// ─── Modal de edição ──────────────────────────────────────────────────────────
+
+const COMBUSTIVEIS = ["flex", "gasolina", "etanol", "diesel", "eletrico", "hibrido"];
+const CAMBIOS = ["automatico", "manual", "cvt"];
+const CONDICOES = ["excelente", "otimo", "bom", "regular"];
+
+function EditarVeiculoModal({
+  veiculo,
+  onClose,
+  onSave,
+}: {
+  veiculo: VeiculoAnunciante;
+  onClose: () => void;
+  onSave: (id: string, dados: Record<string, unknown>) => Promise<{ error: unknown }>;
+}) {
+  const [form, setForm] = useState({
+    preco: veiculo.preco,
+    quilometragem: veiculo.quilometragem,
+    versao: veiculo.versao ?? "",
+    cor: veiculo.cor ?? "",
+    combustivel: veiculo.combustivel,
+    cambio: veiculo.cambio,
+    condicao: veiculo.condicao,
+    descricao: veiculo.descricao ?? "",
+    ipva_pago: veiculo.ipva_pago,
+    revisoes_em_dia: veiculo.revisoes_em_dia,
+    sem_sinistro: veiculo.sem_sinistro,
+    aceita_troca: veiculo.aceita_troca,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const update = (field: string, value: unknown) => setForm((p) => ({ ...p, [field]: value }));
+
+  const handleSave = async () => {
+    if (form.preco <= 0) { setError("Preço deve ser maior que zero."); return; }
+    setSaving(true);
+    setError(null);
+    const { error: err } = await onSave(veiculo.id, {
+      preco: form.preco,
+      quilometragem: form.quilometragem,
+      versao: form.versao || null,
+      cor: form.cor || null,
+      combustivel: form.combustivel,
+      cambio: form.cambio,
+      condicao: form.condicao,
+      descricao: form.descricao || null,
+      ipva_pago: form.ipva_pago,
+      revisoes_em_dia: form.revisoes_em_dia,
+      sem_sinistro: form.sem_sinistro,
+      aceita_troca: form.aceita_troca,
+    });
+    setSaving(false);
+    if (err) { setError("Erro ao salvar. Tente novamente."); return; }
+    onClose();
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-background rounded-2xl border border-border shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between p-5 border-b border-border">
+            <h2 className="text-h4 text-text-primary">
+              Editar {veiculo.marca} {veiculo.modelo} {veiculo.ano}
+            </h2>
+            <button onClick={onClose} className="text-text-muted hover:text-text-primary">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {/* Preço + KM */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Preço (R$)</label>
+                <input
+                  type="number"
+                  value={form.preco}
+                  onChange={(e) => update("preco", parseFloat(e.target.value) || 0)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                />
+              </div>
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Quilometragem</label>
+                <input
+                  type="number"
+                  value={form.quilometragem}
+                  onChange={(e) => update("quilometragem", parseInt(e.target.value) || 0)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                />
+              </div>
+            </div>
+
+            {/* Versão + Cor */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Versão</label>
+                <input
+                  type="text"
+                  value={form.versao}
+                  onChange={(e) => update("versao", e.target.value)}
+                  placeholder="Ex: XLS 2.0"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                />
+              </div>
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Cor</label>
+                <input
+                  type="text"
+                  value={form.cor}
+                  onChange={(e) => update("cor", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                />
+              </div>
+            </div>
+
+            {/* Combustível + Câmbio + Condição */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Combustível</label>
+                <select
+                  value={form.combustivel}
+                  onChange={(e) => update("combustivel", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                >
+                  {COMBUSTIVEIS.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Câmbio</label>
+                <select
+                  value={form.cambio}
+                  onChange={(e) => update("cambio", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                >
+                  {CAMBIOS.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-micro text-text-muted mb-1 block">Condição</label>
+                <select
+                  value={form.condicao}
+                  onChange={(e) => update("condicao", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage"
+                >
+                  {CONDICOES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Descrição */}
+            <div>
+              <label className="text-micro text-text-muted mb-1 block">Descrição</label>
+              <textarea
+                value={form.descricao}
+                onChange={(e) => update("descricao", e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-small text-text-primary outline-none focus:border-garage resize-none"
+              />
+            </div>
+
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: "ipva_pago", label: "IPVA pago" },
+                { key: "revisoes_em_dia", label: "Revisões em dia" },
+                { key: "sem_sinistro", label: "Sem sinistro" },
+                { key: "aceita_troca", label: "Aceita troca" },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form[key as keyof typeof form] as boolean}
+                    onChange={(e) => update(key, e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-garage focus:ring-garage"
+                  />
+                  <span className="text-small text-text-secondary">{label}</span>
+                </label>
+              ))}
+            </div>
+
+            {error && (
+              <p className="text-small text-danger text-center">{error}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 p-5 border-t border-border">
+            <button
+              onClick={onClose}
+              className="rounded-full border border-border px-5 py-2 text-small font-medium text-text-secondary hover:bg-surface-secondary transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-full bg-garage text-white px-5 py-2 text-small font-medium hover:brightness-90 transition-all disabled:opacity-50"
+            >
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4" /> Salvar</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export default function GarageInventory() {
   const { garagem, loading: gLoading } = useMinhaGaragem();
-  const { veiculos, contagens, atualizarStatus, loading: vLoading } = useVeiculosGaragem(garagem?.id ?? null);
+  const { veiculos, contagens, atualizarStatus, atualizarVeiculo, loading: vLoading, recarregar } = useVeiculosGaragem(garagem?.id ?? null);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editando, setEditando] = useState<VeiculoAnunciante | null>(null);
+  const [fotosVeiculo, setFotosVeiculo] = useState<VeiculoAnunciante | null>(null);
 
   const loading = gLoading || vLoading;
 
@@ -201,6 +415,24 @@ export default function GarageInventory() {
                         <td className="p-4 text-right text-small text-text-secondary hidden xl:table-cell">{diasPublicado(v.publicado_em)}</td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-1">
+                            {(v.status === "publicado" || v.status === "pausado" || v.status === "rascunho") && (
+                              <>
+                                <button
+                                  onClick={() => setEditando(v)}
+                                  title="Editar"
+                                  className="rounded-lg border border-border p-1.5 text-text-muted hover:text-garage hover:border-garage transition-colors"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setFotosVeiculo(v)}
+                                  title="Gerenciar fotos"
+                                  className="rounded-lg border border-border p-1.5 text-text-muted hover:text-garage hover:border-garage transition-colors"
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                             {isActive && (
                               <button
                                 onClick={() => handleTogglePause(v.id, v.status)}
@@ -253,6 +485,27 @@ export default function GarageInventory() {
           </div>
         )}
       </div>
+
+      {/* Modal de edição */}
+      {editando && (
+        <EditarVeiculoModal
+          veiculo={editando}
+          onClose={() => setEditando(null)}
+          onSave={atualizarVeiculo}
+        />
+      )}
+
+      {/* Modal de fotos */}
+      {fotosVeiculo && (
+        <GerenciarFotosModal
+          veiculoId={fotosVeiculo.id}
+          marca={fotosVeiculo.marca}
+          modelo={fotosVeiculo.modelo}
+          onClose={() => setFotosVeiculo(null)}
+          onFotosChanged={recarregar}
+          colorTheme="garage"
+        />
+      )}
     </div>
   );
 }

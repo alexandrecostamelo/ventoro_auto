@@ -5,6 +5,7 @@ import {
   Car, Camera, Wand2, MessageSquareText, DollarSign, Crown, CheckCircle2,
   ChevronLeft, ChevronRight, Upload, X, Sparkles, AlertTriangle, Info,
   FileText, Star, Image as ImageIcon, Eye, ArrowRight, Shield,
+  RotateCcw, Lightbulb, ChevronDown, Plus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,9 +18,11 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Navbar } from "@/components/Navbar";
-import { usePublicarVeiculo, type DadosNovoVeiculo } from "@/hooks/usePublicarVeiculo";
+import { usePublicarVeiculo, type DadosNovoVeiculo, type FotoPublicada } from "@/hooks/usePublicarVeiculo";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { validarArquivoImagem } from "@/utils/imageCompression";
+import { useVenStudio, CENARIOS_VENSTUDIO, type CenarioId } from "@/hooks/useVenStudio";
 
 const STEPS = [
   { id: 1, label: "Dados", icon: Car },
@@ -119,7 +122,12 @@ export default function PublishAdPage() {
     condicao: "bom",
     fotos: [],
     studioProcessed: false,
+    studioCenario: "showroom_escuro",
+    studioMelhorarQualidade: false,
+    titulo: "",
     descricao: "",
+    destaques: [],
+    faq: [],
     preco: "",
     aceitaTroca: false,
     ipva_pago: false,
@@ -130,7 +138,11 @@ export default function PublishAdPage() {
   });
 
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [studioProcessing, setStudioProcessing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSugestoes, setAiSugestoes] = useState<string[]>([]);
+  const [aiGeracoes, setAiGeracoes] = useState(0);
+  const [fotosPublicadas, setFotosPublicadas] = useState<FotoPublicada[]>([]);
+  const venStudio = useVenStudio();
 
   const progress = (step / STEPS.length) * 100;
 
@@ -171,26 +183,49 @@ export default function PublishAdPage() {
     setFotoPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const simulateStudio = () => {
-    setStudioProcessing(true);
-    setTimeout(() => {
-      setStudioProcessing(false);
-      updateForm("studioProcessed", true);
-    }, 2500);
+  const confirmarStudio = () => {
+    updateForm("studioProcessed", true);
+    updateForm("studioCenario", venStudio.cenario);
+    updateForm("studioMelhorarQualidade", venStudio.melhorarQualidade);
   };
 
-  const simulateAI = () => {
+  const gerarComIA = async () => {
     setAiGenerating(true);
-    setTimeout(() => {
-      updateForm(
-        "descricao",
-        `${form.marca} ${form.modelo} ${form.versao} ${form.ano} em excelente estado de conservação. ` +
-          `Com apenas ${form.quilometragem || "XX.XXX"} km rodados, este veículo conta com motor ${form.combustivel || "flex"} e câmbio ${form.cambio || "automático"}. ` +
-          `Equipado com ${form.opcionais.slice(0, 4).join(", ") || "diversos opcionais"}, oferece conforto e segurança para toda a família. ` +
-          `IPVA pago, revisões em dia e sem qualquer pendência. Único dono, nunca batido. Oportunidade imperdível!`
-      );
+    setAiError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão expirada");
+
+      const { data, error } = await supabase.functions.invoke("gerar-descricao-veiculo", {
+        body: {
+          marca: form.marca, modelo: form.modelo, versao: form.versao,
+          ano: form.ano, quilometragem: form.quilometragem,
+          combustivel: form.combustivel, cambio: form.cambio,
+          cor: form.cor, potencia: form.potencia,
+          cidade: form.cidade, estado: form.estado,
+          opcionais: form.opcionais, condicao: form.condicao,
+          preco: form.preco || "0",
+          ipva_pago: form.ipva_pago, revisoes_em_dia: form.revisoes_em_dia,
+          sem_sinistro: form.sem_sinistro, fotos_count: fotoFiles.length,
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      updateForm("titulo", data.titulo || "");
+      updateForm("descricao", data.descricao || "");
+      updateForm("destaques", data.destaques || []);
+      updateForm("faq", data.faq || []);
+      setAiSugestoes(data.sugestoes || []);
+      setAiGeracoes((prev) => prev + 1);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      setAiError(msg);
+    } finally {
       setAiGenerating(false);
-    }, 2000);
+    }
   };
 
   const nextStep = () => {
@@ -216,9 +251,13 @@ export default function PublishAdPage() {
     setUploadInfo(null);
     if (resultado) {
       setSlugPublicado(resultado.slug);
+      setFotosPublicadas(resultado.fotos);
       setStep(7);
+
+      // VenStudio DESABILITADO — pipeline generativo altera veículo (risco CDC Art. 37)
+      // Reabilitar somente após pipeline determinístico com fingerprint.
+      // if (form.studioProcessed && resultado.fotos.length > 0) { ... }
     }
-    // Se falhou, publishError fica setado — exibido abaixo do botão
   };
 
   const isPublishStep = step === 6;
@@ -287,16 +326,37 @@ export default function PublishAdPage() {
               <StepStudio
                 previews={fotoPreviews}
                 studioProcessed={form.studioProcessed}
-                processing={studioProcessing}
-                onProcess={simulateStudio}
+                cenario={venStudio.cenario}
+                melhorarQualidade={venStudio.melhorarQualidade}
+                onCenarioChange={venStudio.setCenario}
+                onMelhorarQualidadeChange={venStudio.setMelhorarQualidade}
+                onConfirm={confirmarStudio}
+                onSkip={() => updateForm("studioProcessed", false)}
               />
             )}
             {step === 4 && (
-              <StepCopilot form={form} updateForm={updateForm} generating={aiGenerating} onGenerate={simulateAI} />
+              <StepCopilot
+                form={form}
+                updateForm={updateForm}
+                generating={aiGenerating}
+                aiError={aiError}
+                sugestoes={aiSugestoes}
+                geracoes={aiGeracoes}
+                onGenerate={gerarComIA}
+              />
             )}
             {step === 5 && <StepPricing form={form} updateForm={updateForm} />}
             {step === 6 && <StepPlan form={form} updateForm={updateForm} user={user} />}
-            {step === 7 && <StepSuccess form={form} navigate={navigate} slug={slugPublicado} />}
+            {step === 7 && (
+              <StepSuccess
+                form={form}
+                navigate={navigate}
+                slug={slugPublicado}
+                studioFotos={venStudio.fotos}
+                studioProgresso={venStudio.progresso}
+                studioProcessando={venStudio.processando}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
 
@@ -613,109 +673,87 @@ function StepPhotos({
 }
 
 /* ──────────── Step 3: VenStudio IA ──────────── */
-function StepStudio({ previews, studioProcessed, processing, onProcess }: {
+// ══════════════════════════════════════════════════════════════════════
+// DESABILITADO — RISCO LEGAL (CDC Art. 37 — propaganda enganosa)
+// Pipeline generativo altera características do veículo.
+// Reabilitar somente após pipeline determinístico com fingerprint.
+// Ver docs/venstudio-arquitetura.md
+// ══════════════════════════════════════════════════════════════════════
+function StepStudio({ previews, studioProcessed, cenario, melhorarQualidade, onCenarioChange, onMelhorarQualidadeChange, onConfirm, onSkip }: {
   previews: string[];
   studioProcessed: boolean;
-  processing: boolean;
-  onProcess: () => void;
+  cenario: string;
+  melhorarQualidade: boolean;
+  onCenarioChange: (c: CenarioId) => void;
+  onMelhorarQualidadeChange: (v: boolean) => void;
+  onConfirm: () => void;
+  onSkip: () => void;
 }) {
+  // Forçar skip automaticamente — VenStudio desabilitado
+  useEffect(() => {
+    if (studioProcessed) onSkip();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
           <Wand2 className="h-6 w-6 text-primary" /> VenStudio IA
         </h2>
-        <p className="text-muted-foreground mt-1">Transforme suas fotos em imagens profissionais com IA</p>
       </div>
 
-      {previews.length === 0 ? (
-        <Card className="bg-muted/30">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <ImageIcon className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="font-semibold">Nenhuma foto adicionada</p>
-            <p className="text-sm text-muted-foreground mt-1">Volte à etapa anterior para adicionar fotos</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {["Showroom Premium", "Fundo Neutro", "Cenário Urbano"].map((cenario, i) => (
-              <Card key={cenario} className={`cursor-pointer transition-all hover:shadow-md ${i === 0 ? "ring-2 ring-primary" : ""}`}>
-                <CardContent className="p-4 text-center">
-                  <div className="h-24 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center mb-3">
-                    <ImageIcon className="h-8 w-8 text-primary" />
-                  </div>
-                  <p className="font-semibold text-sm">{cenario}</p>
-                  {i === 0 && <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">Recomendado</Badge>}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Processar {previews.length} foto(s) com VenStudio IA
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Remoção de fundo, correção de luz e aplicação de cenário
-                  </p>
-                </div>
-                <Button onClick={onProcess} disabled={processing || studioProcessed} className="bg-primary hover:bg-primary/90">
-                  {processing ? (
-                    <span className="flex items-center gap-2">
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                        <Wand2 className="h-4 w-4" />
-                      </motion.div>
-                      Processando...
-                    </span>
-                  ) : studioProcessed ? (
-                    <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Processado</span>
-                  ) : (
-                    "Aplicar VenStudio"
-                  )}
-                </Button>
-              </div>
-              {processing && (
-                <div className="mt-4">
-                  <Progress value={65} className="h-2" />
-                  <p className="text-xs text-muted-foreground mt-1">Removendo fundo e aplicando cenário...</p>
-                </div>
-              )}
-              {studioProcessed && (
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Antes</p>
-                    <div className="rounded-lg overflow-hidden aspect-[4/3] bg-muted">
-                      <img src={previews[0]} alt="Antes" className="w-full h-full object-cover opacity-70" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-primary mb-2">Depois ✨</p>
-                    <div className="rounded-lg overflow-hidden aspect-[4/3] bg-gradient-to-br from-primary/10 to-primary/5">
-                      <img src={previews[0]} alt="Depois" className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+      <Card className="border-warning bg-warning/5">
+        <CardContent className="p-6 text-center">
+          <AlertTriangle className="h-10 w-10 text-warning mx-auto mb-3" />
+          <h3 className="text-lg font-bold mb-2">VenStudio em manutenção técnica</h3>
+          <p className="text-muted-foreground max-w-md mx-auto mb-4">
+            Seu anúncio será publicado com as fotos originais.
+            Estamos aprimorando o processamento para garantir fidelidade total ao seu veículo.
+            Voltaremos em breve.
+          </p>
+          <Button onClick={onSkip}>
+            Pular esta etapa
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 /* ──────────── Step 4: AI Copilot ──────────── */
-function StepCopilot({ form, updateForm, generating, onGenerate }: {
+function StepCopilot({ form, updateForm, generating, aiError, sugestoes, geracoes, onGenerate }: {
   form: FormData;
   updateForm: (f: keyof FormData, v: unknown) => void;
   generating: boolean;
+  aiError: string | null;
+  sugestoes: string[];
+  geracoes: number;
   onGenerate: () => void;
 }) {
+  const [faqAberto, setFaqAberto] = useState<number | null>(null);
+
+  const addDestaque = () => {
+    updateForm("destaques", [...form.destaques, ""]);
+  };
+  const removeDestaque = (idx: number) => {
+    updateForm("destaques", form.destaques.filter((_: string, i: number) => i !== idx));
+  };
+  const updateDestaque = (idx: number, value: string) => {
+    updateForm("destaques", form.destaques.map((d: string, i: number) => (i === idx ? value : d)));
+  };
+
+  const addFaq = () => {
+    updateForm("faq", [...form.faq, { pergunta: "", resposta: "" }]);
+  };
+  const removeFaq = (idx: number) => {
+    updateForm("faq", form.faq.filter((_: { pergunta: string; resposta: string }, i: number) => i !== idx));
+  };
+  const updateFaq = (idx: number, field: "pergunta" | "resposta", value: string) => {
+    updateForm("faq", form.faq.map((f: { pergunta: string; resposta: string }, i: number) => (i === idx ? { ...f, [field]: value } : f)));
+  };
+
+  const hasContent = form.descricao || form.destaques.length > 0;
+
   return (
     <div className="space-y-6">
       <div>
@@ -723,33 +761,85 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: {
           <MessageSquareText className="h-6 w-6 text-primary" /> Copiloto Ventoro IA
         </h2>
         <p className="text-muted-foreground mt-1">
-          A IA gera a descrição perfeita baseada nos dados do seu veículo
+          A IA gera título, descrição, destaques e FAQ baseados nos dados do seu veículo
         </p>
       </div>
 
+      {/* Generate button */}
       <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="p-4 flex items-center gap-4">
-          <Sparkles className="h-8 w-8 text-primary flex-shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold text-sm">Gerar descrição com IA</p>
-            <p className="text-xs text-muted-foreground">
-              Baseada em {form.marca || "marca"} {form.modelo || "modelo"}, {form.opcionais.length} opcionais
-            </p>
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <Sparkles className="h-8 w-8 text-primary flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm">
+                {hasContent ? "Regenerar conteúdo com IA" : "Gerar conteúdo com IA"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Baseada em {form.marca || "marca"} {form.modelo || "modelo"} {form.ano}, {form.opcionais.length} opcionais
+                {geracoes > 0 && ` · ${geracoes}/3 gerações usadas`}
+              </p>
+            </div>
+            <Button
+              onClick={onGenerate}
+              disabled={generating || geracoes >= 3}
+              size="sm"
+              className="bg-primary hover:bg-primary/90"
+            >
+              {generating ? (
+                <span className="flex items-center gap-2">
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                    <Sparkles className="h-4 w-4" />
+                  </motion.div>
+                  Gerando...
+                </span>
+              ) : hasContent ? (
+                <><RotateCcw className="h-4 w-4 mr-1" /> Gerar novamente</>
+              ) : (
+                <><Wand2 className="h-4 w-4 mr-1" /> Gerar</>
+              )}
+            </Button>
           </div>
-          <Button onClick={onGenerate} disabled={generating} size="sm" className="bg-primary hover:bg-primary/90">
-            {generating ? (
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                <Sparkles className="h-4 w-4" />
-              </motion.div>
-            ) : (
-              <><Wand2 className="h-4 w-4 mr-1" /> Gerar</>
-            )}
-          </Button>
+          {generating && (
+            <p className="text-xs text-primary mt-3 animate-pulse">
+              O copiloto está analisando seu veículo e gerando o melhor conteúdo...
+            </p>
+          )}
+          {geracoes >= 3 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Limite de 3 gerações por anúncio atingido. Você pode editar o conteúdo manualmente.
+            </p>
+          )}
         </CardContent>
       </Card>
 
+      {/* Error */}
+      {aiError && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Não foi possível gerar o conteúdo</p>
+              <p className="text-xs text-muted-foreground">{aiError}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Título */}
       <div className="space-y-2">
-        <Label>Descrição do Anúncio</Label>
+        <Label>Título do anúncio</Label>
+        <Input
+          placeholder="Ex: Honda Civic EXL 2022 — Baixa km, Revisado"
+          value={form.titulo}
+          onChange={(e) => updateForm("titulo", e.target.value)}
+          maxLength={80}
+        />
+        <p className="text-xs text-muted-foreground text-right">{form.titulo.length}/80</p>
+      </div>
+
+      {/* Descrição */}
+      <div className="space-y-2">
+        <Label>Descrição do anúncio</Label>
         <Textarea
           placeholder="Descreva seu veículo ou use a IA para gerar..."
           value={form.descricao}
@@ -757,18 +847,101 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: {
           rows={8}
           className="resize-none"
         />
-        <p className="text-xs text-muted-foreground text-right">{form.descricao.length}/2000 caracteres</p>
+        <p className="text-xs text-muted-foreground text-right">{form.descricao.length}/2000</p>
       </div>
 
-      {form.descricao && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Eye className="h-4 w-4 text-primary" /> Pré-visualização
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{form.descricao}</p>
+      {/* Destaques */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Destaques do veículo</Label>
+          {form.destaques.length < 6 && (
+            <Button variant="ghost" size="sm" onClick={addDestaque} className="text-primary">
+              <Plus className="h-3 w-3 mr-1" /> Adicionar
+            </Button>
+          )}
+        </div>
+        {form.destaques.length === 0 && !generating && (
+          <p className="text-xs text-muted-foreground">Use a IA para gerar ou adicione manualmente</p>
+        )}
+        {form.destaques.map((d: string, i: number) => (
+          <div key={i} className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-primary flex-shrink-0" />
+            <Input
+              value={d}
+              onChange={(e) => updateDestaque(i, e.target.value)}
+              placeholder={`Destaque ${i + 1}`}
+              className="flex-1"
+            />
+            <Button variant="ghost" size="sm" onClick={() => removeDestaque(i)} className="text-muted-foreground hover:text-destructive p-1">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* FAQ */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Perguntas frequentes (FAQ)</Label>
+          {form.faq.length < 5 && (
+            <Button variant="ghost" size="sm" onClick={addFaq} className="text-primary">
+              <Plus className="h-3 w-3 mr-1" /> Adicionar
+            </Button>
+          )}
+        </div>
+        {form.faq.length === 0 && !generating && (
+          <p className="text-xs text-muted-foreground">Use a IA para gerar ou adicione manualmente</p>
+        )}
+        {form.faq.map((f: { pergunta: string; resposta: string }, i: number) => (
+          <Card key={i}>
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFaqAberto(faqAberto === i ? null : i)}
+                  className="flex-1 text-left flex items-center gap-2"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform ${faqAberto === i ? "rotate-180" : ""}`} />
+                  <span className="text-sm font-medium">{f.pergunta || `Pergunta ${i + 1}`}</span>
+                </button>
+                <Button variant="ghost" size="sm" onClick={() => removeFaq(i)} className="text-muted-foreground hover:text-destructive p-1">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {faqAberto === i && (
+                <div className="space-y-2 pl-6">
+                  <Input
+                    value={f.pergunta}
+                    onChange={(e) => updateFaq(i, "pergunta", e.target.value)}
+                    placeholder="Pergunta"
+                  />
+                  <Textarea
+                    value={f.resposta}
+                    onChange={(e) => updateFaq(i, "resposta", e.target.value)}
+                    placeholder="Resposta"
+                    rows={2}
+                    className="resize-none"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Sugestões de melhoria */}
+      {sugestoes.length > 0 && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30">
+          <CardContent className="p-4">
+            <p className="font-semibold text-sm flex items-center gap-2 mb-2">
+              <Lightbulb className="h-4 w-4 text-amber-600" /> Sugestões para melhorar seu anúncio
+            </p>
+            <ul className="space-y-1">
+              {sugestoes.map((s, i) => (
+                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                  <span className="text-amber-600 mt-0.5">•</span> {s}
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -777,53 +950,254 @@ function StepCopilot({ form, updateForm, generating, onGenerate }: {
 }
 
 /* ──────────── Step 5: Pricing ──────────── */
+
+interface FipeData {
+  codigo_fipe: string | null;
+  preco_fipe: number;
+  referencia_mes: string | null;
+  preco_sugerido_min: number;
+  preco_sugerido_max: number;
+  ajuste_km: number;
+  ajuste_condicao: number;
+  preco_status: 'abaixo' | 'na_media' | 'acima' | null;
+  fonte: 'cache' | 'api';
+}
+
+function FipeGauge({ preco, fipeMin, fipeMax, precoFipe }: {
+  preco: number;
+  fipeMin: number;
+  fipeMax: number;
+  precoFipe: number;
+}) {
+  // Gauge range: fipeMin * 0.7 to fipeMax * 1.3
+  const rangeMin = fipeMin * 0.7;
+  const rangeMax = fipeMax * 1.3;
+  const range = rangeMax - rangeMin;
+
+  const clamp = (v: number) => Math.max(0, Math.min(100, ((v - rangeMin) / range) * 100));
+
+  const fipeMinPos = clamp(fipeMin);
+  const fipeMaxPos = clamp(fipeMax);
+  const fipePos = clamp(precoFipe);
+  const precoPos = clamp(preco);
+
+  return (
+    <div className="relative h-10 mt-4 mb-6">
+      {/* Track */}
+      <div className="absolute top-4 left-0 right-0 h-2 rounded-full bg-muted overflow-hidden">
+        {/* Zona abaixo (verde) */}
+        <div
+          className="absolute h-full bg-green-400/40"
+          style={{ left: '0%', width: `${fipeMinPos}%` }}
+        />
+        {/* Zona ideal (primary) */}
+        <div
+          className="absolute h-full bg-primary/30"
+          style={{ left: `${fipeMinPos}%`, width: `${fipeMaxPos - fipeMinPos}%` }}
+        />
+        {/* Zona acima (vermelho) */}
+        <div
+          className="absolute h-full bg-red-400/40"
+          style={{ left: `${fipeMaxPos}%`, width: `${100 - fipeMaxPos}%` }}
+        />
+      </div>
+
+      {/* FIPE marker */}
+      <div
+        className="absolute top-2 w-0.5 h-6 bg-primary/60"
+        style={{ left: `${fipePos}%` }}
+      />
+      <div
+        className="absolute -top-1 text-[10px] text-primary font-medium whitespace-nowrap"
+        style={{ left: `${fipePos}%`, transform: 'translateX(-50%)' }}
+      >
+        FIPE
+      </div>
+
+      {/* User price marker */}
+      {preco > 0 && (
+        <>
+          <div
+            className="absolute top-2.5 w-4 h-4 rounded-full border-2 border-foreground bg-background shadow-md"
+            style={{ left: `${precoPos}%`, transform: 'translateX(-50%)' }}
+          />
+          <div
+            className="absolute top-8 text-[10px] font-bold whitespace-nowrap"
+            style={{ left: `${precoPos}%`, transform: 'translateX(-50%)' }}
+          >
+            Seu preço
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function StepPricing({ form, updateForm }: {
   form: FormData;
   updateForm: (f: keyof FormData, v: unknown) => void;
 }) {
+  const [fipeData, setFipeData] = useState<FipeData | null>(null);
+  const [fipeLoading, setFipeLoading] = useState(false);
+  const [fipeError, setFipeError] = useState<string | null>(null);
+  const [fipeConsulted, setFipeConsulted] = useState(false);
+
+  // Auto-consult FIPE on mount if we have marca/modelo/ano
+  useEffect(() => {
+    if (fipeConsulted) return;
+    if (!form.marca || !form.modelo || !form.ano) return;
+    consultarFipe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const consultarFipe = async () => {
+    if (!form.marca || !form.modelo || !form.ano) {
+      setFipeError('Preencha marca, modelo e ano para consultar a FIPE.');
+      return;
+    }
+
+    setFipeLoading(true);
+    setFipeError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sessão expirada');
+
+      const { data, error } = await supabase.functions.invoke('consultar-fipe', {
+        body: {
+          marca: form.marca,
+          modelo: form.modelo,
+          ano: parseInt(form.ano, 10),
+          combustivel: form.combustivel || 'flex',
+          quilometragem: form.quilometragem ? parseInt(form.quilometragem, 10) : undefined,
+          condicao: form.condicao || 'bom',
+          preco: form.preco ? parseFloat(form.preco) : undefined,
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data?.error) {
+        if (data.nao_encontrado) {
+          setFipeError('Veículo não encontrado na tabela FIPE. Defina o preço manualmente.');
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      setFipeData(data as FipeData);
+      setFipeConsulted(true);
+    } catch (err) {
+      setFipeError(err instanceof Error ? err.message : 'Erro ao consultar FIPE');
+    } finally {
+      setFipeLoading(false);
+    }
+  };
+
+  // Recalculate status when price changes
   const precoNum = Number(form.preco) || 0;
-  const sugeridoMin = 95000;
-  const sugeridoMax = 115000;
-  const status =
-    precoNum === 0 ? null
-    : precoNum < sugeridoMin ? "abaixo"
-    : precoNum > sugeridoMax ? "acima"
-    : "na_media";
+  const status = fipeData
+    ? precoNum === 0
+      ? null
+      : precoNum < fipeData.preco_sugerido_min
+        ? 'abaixo'
+        : precoNum > fipeData.preco_sugerido_max
+          ? 'acima'
+          : 'na_media'
+    : null;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">Definir Preço</h2>
-        <p className="text-muted-foreground mt-1">A Ventoro IA analisa o mercado para recomendar o melhor preço</p>
+        <p className="text-muted-foreground mt-1">Consultamos a tabela FIPE para recomendar o melhor preço</p>
       </div>
 
-      {/* Análise de mercado decorativa */}
+      {/* FIPE Analysis */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Análise de Mercado Ventoro IA</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Análise FIPE Ventoro</span>
+            </div>
+            {fipeData && (
+              <Badge variant="outline" className="text-xs">
+                {fipeData.referencia_mes || 'Referência atual'}
+                {fipeData.codigo_fipe && ` · ${fipeData.codigo_fipe}`}
+              </Badge>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-background rounded-xl p-4">
-              <p className="text-xs text-muted-foreground">Mínimo</p>
-              <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-trust-low">
-                R$ {sugeridoMin.toLocaleString("pt-BR")}
-              </p>
+
+          {fipeLoading ? (
+            <div className="flex flex-col items-center py-8 gap-3">
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}>
+                <Sparkles className="h-8 w-8 text-primary" />
+              </motion.div>
+              <p className="text-sm text-muted-foreground">Consultando tabela FIPE...</p>
+              <p className="text-xs text-muted-foreground">{form.marca} {form.modelo} {form.ano}</p>
             </div>
-            <div className="bg-background rounded-xl p-4 ring-2 ring-primary">
-              <p className="text-xs text-primary font-medium">Recomendado</p>
-              <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-primary">
-                R$ {Math.round((sugeridoMin + sugeridoMax) / 2).toLocaleString("pt-BR")}
-              </p>
+          ) : fipeData ? (
+            <>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-background rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground">Faixa mínima</p>
+                  <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-green-600 dark:text-green-400">
+                    R$ {fipeData.preco_sugerido_min.toLocaleString("pt-BR")}
+                  </p>
+                </div>
+                <div className="bg-background rounded-xl p-4 ring-2 ring-primary">
+                  <p className="text-xs text-primary font-medium">FIPE</p>
+                  <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-primary">
+                    R$ {fipeData.preco_fipe.toLocaleString("pt-BR")}
+                  </p>
+                </div>
+                <div className="bg-background rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground">Faixa máxima</p>
+                  <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-amber-600 dark:text-amber-400">
+                    R$ {fipeData.preco_sugerido_max.toLocaleString("pt-BR")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Gauge */}
+              <FipeGauge
+                preco={precoNum}
+                fipeMin={fipeData.preco_sugerido_min}
+                fipeMax={fipeData.preco_sugerido_max}
+                precoFipe={fipeData.preco_fipe}
+              />
+
+              {/* Adjustments info */}
+              {(fipeData.ajuste_km !== 0 || fipeData.ajuste_condicao !== 0) && (
+                <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+                  {fipeData.ajuste_condicao !== 0 && (
+                    <span>Condição: {fipeData.ajuste_condicao > 0 ? '+' : ''}{(fipeData.ajuste_condicao * 100).toFixed(1)}%</span>
+                  )}
+                  {fipeData.ajuste_km !== 0 && (
+                    <span>Km: {fipeData.ajuste_km > 0 ? '+' : ''}{(fipeData.ajuste_km * 100).toFixed(1)}%</span>
+                  )}
+                </div>
+              )}
+            </>
+          ) : fipeError ? (
+            <div className="flex flex-col items-center py-6 gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-500" />
+              <p className="text-sm text-muted-foreground text-center">{fipeError}</p>
+              <Button variant="outline" size="sm" onClick={consultarFipe}>
+                <RotateCcw className="h-3 w-3 mr-1" /> Tentar novamente
+              </Button>
             </div>
-            <div className="bg-background rounded-xl p-4">
-              <p className="text-xs text-muted-foreground">Máximo</p>
-              <p className="text-lg font-bold font-[family-name:var(--font-mono)] text-trust-medium">
-                R$ {sugeridoMax.toLocaleString("pt-BR")}
-              </p>
+          ) : (
+            <div className="flex flex-col items-center py-6 gap-3">
+              <DollarSign className="h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Preencha marca, modelo e ano para consultar</p>
+              <Button variant="outline" size="sm" onClick={consultarFipe} disabled={!form.marca || !form.modelo || !form.ano}>
+                <Sparkles className="h-3 w-3 mr-1" /> Consultar FIPE
+              </Button>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -838,14 +1212,24 @@ function StepPricing({ form, updateForm }: {
         />
         {status && (
           <Badge variant="outline" className={
-            status === "abaixo" ? "text-trust-high border-trust-high" :
-            status === "acima" ? "text-trust-low border-trust-low" :
+            status === "abaixo" ? "text-green-600 dark:text-green-400 border-green-600 dark:border-green-400" :
+            status === "acima" ? "text-red-500 border-red-500" :
             "text-primary border-primary"
           }>
-            {status === "abaixo" ? "Abaixo da média — venda rápida"
-              : status === "acima" ? "Acima da média — pode demorar mais"
-              : "Dentro da faixa ideal ✓"}
+            {status === "abaixo" ? "Abaixo da FIPE — venda rápida"
+              : status === "acima" ? "Acima da FIPE — pode demorar mais"
+              : "Dentro da faixa FIPE ✓"}
           </Badge>
+        )}
+        {precoNum > 0 && fipeData && (
+          <p className="text-xs text-muted-foreground">
+            {precoNum > fipeData.preco_fipe
+              ? `${((precoNum / fipeData.preco_fipe - 1) * 100).toFixed(1)}% acima da FIPE`
+              : precoNum < fipeData.preco_fipe
+                ? `${((1 - precoNum / fipeData.preco_fipe) * 100).toFixed(1)}% abaixo da FIPE`
+                : 'Exatamente no valor FIPE'
+            }
+          </p>
         )}
       </div>
 
@@ -981,11 +1365,18 @@ function StepPlan({ form, updateForm, user }: {
 }
 
 /* ──────────── Step 7: Success ──────────── */
-function StepSuccess({ form, navigate, slug }: {
+function StepSuccess({ form, navigate, slug, studioFotos, studioProgresso, studioProcessando }: {
   form: FormData;
   navigate: (path: string) => void;
   slug: string | null;
+  studioFotos: { status: string; urlProcessada?: string; erro?: string }[];
+  studioProgresso: number;
+  studioProcessando: boolean;
 }) {
+  const fotosOk = studioFotos.filter(f => f.status === 'concluido').length;
+  const fotosErro = studioFotos.filter(f => f.status === 'erro').length;
+  const showStudio = form.studioProcessed && studioFotos.length > 0;
+
   return (
     <div className="text-center py-12">
       <motion.div
@@ -1003,6 +1394,35 @@ function StepSuccess({ form, navigate, slug }: {
           Seu {form.marca} {form.modelo} {form.versao} já está no ar.
           Você receberá notificações quando alguém demonstrar interesse.
         </p>
+
+        {/* VenStudio Progress */}
+        {showStudio && (
+          <Card className="max-w-lg mx-auto mt-6 bg-primary/5 border-primary/20 text-left">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                {studioProcessando ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }}>
+                    <Wand2 className="h-5 w-5 text-primary" />
+                  </motion.div>
+                ) : (
+                  <Wand2 className="h-5 w-5 text-primary" />
+                )}
+                <p className="font-semibold text-sm">
+                  {studioProcessando
+                    ? "VenStudio IA processando fotos..."
+                    : studioProgresso === 100
+                    ? "VenStudio IA concluído!"
+                    : "VenStudio IA"}
+                </p>
+              </div>
+              <Progress value={studioProgresso} className="h-2 mb-2" />
+              <p className="text-xs text-muted-foreground">
+                {fotosOk}/{studioFotos.length} fotos processadas
+                {fotosErro > 0 && ` · ${fotosErro} com erro (fotos originais preservadas)`}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-lg mx-auto mt-8">
           <Card className="bg-primary/5">
@@ -1022,8 +1442,8 @@ function StepSuccess({ form, navigate, slug }: {
           <Card className="bg-primary/5">
             <CardContent className="p-4 text-center">
               <Sparkles className="h-5 w-5 text-primary mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">IA ativa</p>
-              <p className="font-bold text-sm">{form.studioProcessed ? "Sim" : "Não"}</p>
+              <p className="text-xs text-muted-foreground">VenStudio</p>
+              <p className="font-bold text-sm">{form.studioProcessed ? "Ativo" : "Não"}</p>
             </CardContent>
           </Card>
         </div>

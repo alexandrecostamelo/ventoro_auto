@@ -51,7 +51,6 @@ export function useVeiculosAnunciante() {
       .from('veiculos')
       .select('*, fotos_veiculo(url_original, url_processada, is_capa, ordem)')
       .eq('anunciante_id', user.id)
-      .eq('tipo_anunciante', 'particular')
       .order('created_at', { ascending: false })
     setLoading(false)
     if (err) {
@@ -101,5 +100,16 @@ export function useVeiculosAnunciante() {
     return { error: err }
   }
 
-  return { veiculos, metricas, contagens, atualizarStatus, loading, error, recarregar: carregar }
+  async function atualizarVeiculo(id: string, dados: Partial<VeiculoRow>) {
+    const { error: err } = await supabase
+      .from('veiculos')
+      .update(dados)
+      .eq('id', id)
+    if (!err) {
+      setVeiculos((prev) => prev.map((v) => (v.id === id ? { ...v, ...dados } : v)))
+    }
+    return { error: err }
+  }
+
+  return { veiculos, metricas, contagens, atualizarStatus, atualizarVeiculo, loading, error, recarregar: carregar }
 }
