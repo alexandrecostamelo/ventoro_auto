@@ -2,7 +2,8 @@ import { useParams, Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
-import { vehicles, garages, formatPrice } from "@/data/mock";
+import { vehicles, garages } from "@/data/mock";
+import { formatPrice } from "@/utils/formatters";
 import { Star, Clock, Car, Shield, Phone, Mail, MapPin, CheckCircle } from "lucide-react";
 
 export default function GarageProfilePage() {

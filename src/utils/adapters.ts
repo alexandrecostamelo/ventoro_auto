@@ -1,5 +1,5 @@
 import type { Database } from '@/types/database.types'
-import type { Vehicle } from '@/data/mock'
+import type { Vehicle } from '@/types/vehicle'
 
 type FotoVeiculo = {
   url_original: string

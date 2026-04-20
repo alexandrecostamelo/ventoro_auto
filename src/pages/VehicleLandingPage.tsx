@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router-dom";
-import { vehicles, formatPrice, formatKm } from "@/data/mock";
+import { vehicles } from "@/data/mock";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { VentoroLogo } from "@/components/VentoroLogo";
 import { motion } from "framer-motion";
 import {

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { veiculoDbParaMock } from '../utils/adapters'
 import type { VeiculoComFotos } from '../utils/adapters'
-import type { Vehicle } from '../data/mock'
+import type { Vehicle } from '../types/vehicle'
 import type { Database } from '../types/database.types'
 
 // Tipo do JOIN favoritos → veiculos → fotos_veiculo

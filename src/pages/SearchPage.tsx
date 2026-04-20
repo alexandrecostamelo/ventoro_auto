@@ -3,12 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
-import { vehicles as mockVehicles } from "@/data/mock";
 import { useVeiculos } from "@/hooks/useVeiculos";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/contexts/AuthContext";
 import { veiculoDbParaMock, type VeiculoComFotos } from "@/utils/adapters";
-import { USE_REAL_DATA } from "@/config/flags";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SlidersHorizontal, Grid3X3, List, Bell, Search, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
@@ -48,20 +46,14 @@ export default function SearchPage() {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [filtros, setFiltros] = useState<FiltrosState>({});
 
-  // Hook sempre chamado (regras do React) — dados usados só quando USE_REAL_DATA=true
   const { veiculos: veiculosDB, total, loading: loadingReal, error: errorReal } = useVeiculos(
-    USE_REAL_DATA
-      ? { ...filtros, ordenar: ordenarMap[sort], pagina: paginaAtual, por_pagina: POR_PAGINA }
-      : {}
+    { ...filtros, ordenar: ordenarMap[sort], pagina: paginaAtual, por_pagina: POR_PAGINA }
   );
 
-  const vehiclesList = USE_REAL_DATA
-    ? (veiculosDB as VeiculoComFotos[]).map(veiculoDbParaMock)
-    : mockVehicles;
-
-  const totalVehicles = USE_REAL_DATA ? total : mockVehicles.length;
-  const isLoading = USE_REAL_DATA && loadingReal;
-  const hasError = USE_REAL_DATA && !!errorReal;
+  const vehiclesList = (veiculosDB as VeiculoComFotos[]).map(veiculoDbParaMock);
+  const totalVehicles = total;
+  const isLoading = loadingReal;
+  const hasError = !!errorReal;
   const totalPages = Math.ceil(totalVehicles / POR_PAGINA);
 
   function handleFiltros(novosFiltros: FiltrosState) {
@@ -208,11 +200,11 @@ export default function SearchPage() {
                     <VehicleCard
                       vehicle={vehicle}
                       layout={layout}
-                      isFavorito={USE_REAL_DATA ? isFavorito(vehicle.id) : undefined}
-                      onToggleFavorito={USE_REAL_DATA ? () => {
+                      isFavorito={isFavorito(vehicle.id)}
+                      onToggleFavorito={() => {
                         if (!user) { navigate("/entrar"); return; }
                         toggleFavorito(vehicle.id);
-                      } : undefined}
+                      }}
                     />
                   </motion.div>
                 ))}

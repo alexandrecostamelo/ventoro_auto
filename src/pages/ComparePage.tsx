@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { vehicles, Vehicle, formatPrice, formatKm } from "@/data/mock";
+import { vehicles } from "@/data/mock";
+import type { Vehicle } from "@/types/vehicle";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { X, Plus, Search, Check, Sparkles, ChevronDown } from "lucide-react";

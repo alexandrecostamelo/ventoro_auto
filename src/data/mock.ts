@@ -1,83 +1,13 @@
-export interface Vehicle {
-  id: string;
-  slug: string;
-  marca: string;
-  modelo: string;
-  versao: string;
-  ano: number;
-  quilometragem: number;
-  preco: number;
-  combustivel: string;
-  cambio: string;
-  cor: string;
-  potencia: string;
-  torque?: string;
-  consumo_cidade?: string;
-  consumo_estrada?: string;
-  cidade: string;
-  estado: string;
-  fotos: string[];
-  score_confianca: number;
-  preco_status: "abaixo" | "na_media" | "acima";
-  preco_sugerido: { min: number; max: number };
-  descricao: string;
-  opcionais: string[];
-  tipo_anunciante: "particular" | "garagem";
-  garagem_id?: string;
-  selo_studio_ia: boolean;
-  selo_video_ia: boolean;
-  selo_inspecao: boolean;
-  destaque: boolean;
-  data_publicacao: string;
-  visualizacoes: number;
-  favoritos_count: number;
-  leads_count: number;
-}
+/**
+ * Dados mock para páginas decorativas (Fase 1) que ainda não foram migradas para Supabase.
+ * Tipos e funções utilitárias foram movidos para src/types/vehicle.ts e src/utils/formatters.ts.
+ *
+ * Pages que usam estes dados:
+ * - VehicleLandingPage, SearchRequestPage, AlertsPage, ComparePage, GarageProfilePage
+ * - Home sections: OpportunitiesSection, FeaturedVehicles, GaragesSection
+ */
 
-export interface Garage {
-  id: string;
-  slug: string;
-  nome: string;
-  logo_url: string;
-  capa_url: string;
-  descricao: string;
-  cidade: string;
-  estado: string;
-  telefone: string;
-  whatsapp: string;
-  email: string;
-  score_confianca: number;
-  total_vendas: number;
-  avaliacao: number;
-  total_estoque: number;
-  tempo_resposta_minutos: number;
-  plano: "starter" | "pro" | "premium";
-  verificada: boolean;
-  cnpj_verificado: boolean;
-  anos_plataforma: number;
-  especialidade: string;
-}
-
-export interface Lead {
-  id: string;
-  veiculo_id: string;
-  nome: string;
-  telefone: string;
-  mensagem: string;
-  origem: "whatsapp" | "formulario" | "agendamento";
-  status: "novo" | "em_contato" | "proposta" | "visita" | "vendido" | "perdido";
-  data: string;
-  veiculo_nome: string;
-}
-
-export interface Alert {
-  id: string;
-  nome: string;
-  filtros: { marca?: string; modelo?: string; preco_max?: number; km_max?: number; cidade?: string };
-  total_matches: number;
-  ativo: boolean;
-  ultima_notificacao: string;
-}
+import type { Vehicle, Garage } from "@/types/vehicle";
 
 const carPhotos = [
   "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800&q=80",
@@ -243,42 +173,3 @@ export const garages: Garage[] = [
     plano: "starter", verificada: true, cnpj_verificado: true, anos_plataforma: 4, especialidade: "Populares e seminovos",
   },
 ];
-
-export const leads: Lead[] = [
-  { id: "lead-001", veiculo_id: "vhc-001", nome: "Carlos Eduardo", telefone: "(18) 99876-5432", mensagem: "Tenho interesse no Civic, aceita troca?", origem: "whatsapp", status: "novo", data: "2025-03-16T10:30:00", veiculo_nome: "Honda Civic EXL 2022" },
-  { id: "lead-002", veiculo_id: "vhc-005", nome: "Ana Paula Silva", telefone: "(11) 99765-4321", mensagem: "Gostaria de agendar um test-drive na BMW.", origem: "agendamento", status: "em_contato", data: "2025-03-15T14:20:00", veiculo_nome: "BMW 320i Sport GP 2023" },
-  { id: "lead-003", veiculo_id: "vhc-002", nome: "Roberto Mendes", telefone: "(11) 98654-3210", mensagem: "Qual o menor valor à vista?", origem: "formulario", status: "proposta", data: "2025-03-14T09:15:00", veiculo_nome: "Toyota Corolla Altis 2023" },
-  { id: "lead-004", veiculo_id: "vhc-009", nome: "Fernanda Costa", telefone: "(11) 97543-2109", mensagem: "Vi o anúncio do A3, ainda disponível?", origem: "whatsapp", status: "visita", data: "2025-03-13T16:45:00", veiculo_nome: "Audi A3 Sedan 2022" },
-  { id: "lead-005", veiculo_id: "vhc-004", nome: "Lucas Oliveira", telefone: "(16) 96432-1098", mensagem: "Aceita financiamento?", origem: "formulario", status: "novo", data: "2025-03-16T08:00:00", veiculo_nome: "Jeep Compass Limited 2022" },
-  { id: "lead-006", veiculo_id: "vhc-010", nome: "Marcos Pereira", telefone: "(16) 95321-0987", mensagem: "Hilux impecável! Aceita consórcio contemplado?", origem: "whatsapp", status: "em_contato", data: "2025-03-12T11:30:00", veiculo_nome: "Toyota Hilux SRX 2023" },
-  { id: "lead-007", veiculo_id: "vhc-001", nome: "Juliana Santos", telefone: "(18) 94210-9876", mensagem: "Olá, o IPVA está pago?", origem: "formulario", status: "vendido", data: "2025-03-10T13:00:00", veiculo_nome: "Honda Civic EXL 2022" },
-  { id: "lead-008", veiculo_id: "vhc-008", nome: "Pedro Almeida", telefone: "(19) 93109-8765", mensagem: "Gostaria de ver a S10 pessoalmente.", origem: "agendamento", status: "perdido", data: "2025-03-09T15:30:00", veiculo_nome: "Chevrolet S10 LTZ 2022" },
-];
-
-export const alerts: Alert[] = [
-  { id: "alt-001", nome: "SUV até R$ 150k", filtros: { preco_max: 150000, km_max: 50000, cidade: "São Paulo" }, total_matches: 14, ativo: true, ultima_notificacao: "2025-03-16T08:00:00" },
-  { id: "alt-002", nome: "Honda Civic automático", filtros: { marca: "Honda", modelo: "Civic", preco_max: 140000 }, total_matches: 6, ativo: true, ultima_notificacao: "2025-03-15T10:00:00" },
-  { id: "alt-003", nome: "Pickup Diesel 4x4", filtros: { preco_max: 250000, km_max: 60000 }, total_matches: 8, ativo: false, ultima_notificacao: "2025-03-10T12:00:00" },
-];
-
-export const mockUser = {
-  id: "usr-001",
-  nome: "João Victor",
-  email: "joao@email.com",
-  avatar_url: "https://ui-avatars.com/api/?name=João+Victor&background=1D9E75&color=fff&size=128",
-  tipo: "particular" as const,
-  cidade: "Presidente Prudente",
-  estado: "SP",
-};
-
-export function formatPrice(value: number): string {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
-}
-
-export function formatKm(value: number): string {
-  return value.toLocaleString("pt-BR") + " km";
-}
-
-export function simulateAsync<T>(data: T, delay = 800): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), delay));
-}

@@ -226,20 +226,6 @@ export function usePublicarVeiculo(): PublicarResult {
         }
       }
 
-    } else if (dados.fotos.length > 0) {
-      // Fallback: URLs mock/demo (caminho USE_REAL_DATA=false ou fotos de demonstração)
-      const fotoInserts = dados.fotos.map((url, idx) => ({
-        veiculo_id: veiculo!.id,
-        url_original: url,
-        url_processada: null,
-        ordem: idx,
-        is_capa: idx === 0,
-        processada_por_ia: false,
-      }))
-      const { error: fotosError } = await supabase.from('fotos_veiculo').insert(fotoInserts)
-      if (fotosError) {
-        console.warn('[usePublicarVeiculo] fotos_veiculo INSERT falhou (mock):', fotosError.message)
-      }
     }
 
     setLoading(false)

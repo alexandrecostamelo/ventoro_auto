@@ -19,7 +19,6 @@ import { Separator } from "@/components/ui/separator";
 import { Navbar } from "@/components/Navbar";
 import { usePublicarVeiculo, type DadosNovoVeiculo } from "@/hooks/usePublicarVeiculo";
 import { useAuth } from "@/contexts/AuthContext";
-import { USE_REAL_DATA } from "@/config/flags";
 import { validarArquivoImagem } from "@/utils/imageCompression";
 
 const STEPS = [
@@ -210,11 +209,6 @@ export default function PublishAdPage() {
   };
 
   const handlePublicar = async () => {
-    if (!USE_REAL_DATA) {
-      // Mock: avança direto para o sucesso sem INSERT
-      setStep(7);
-      return;
-    }
     setUploadInfo(null);
     const resultado = await publicar(form, fotoFiles, (n, total) => {
       setUploadInfo(`Enviando fotos ${n}/${total}…`);

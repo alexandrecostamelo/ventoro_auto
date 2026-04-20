@@ -3,12 +3,10 @@
 // NÃO usar dados simulados aqui.
 
 import { useState } from "react";
-import { vehicles as mockVehicles, formatPrice } from "@/data/mock";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { TrendingUp } from "lucide-react";
-import { USE_REAL_DATA } from "@/config/flags";
 import { useVeiculosAnunciante } from "@/hooks/useVeiculosAnunciante";
 import { useVisualizacoesPorDia } from "@/hooks/useVisualizacoesPorDia";
 import { formatarPreco } from "@/utils/formatters";
@@ -23,28 +21,6 @@ const PERIOD_TO_DIAS: Record<Period, number> = {
   "30 dias": 30,
   "90 dias": 90,
 };
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_VIEWS_7D = [
-  { data: "Seg", total: 120 }, { data: "Ter", total: 185 },
-  { data: "Qua", total: 142 }, { data: "Qui", total: 210 },
-  { data: "Sex", total: 198 }, { data: "Sáb", total: 310 },
-  { data: "Dom", total: 245 },
-];
-
-const MOCK_LEADS_PER_VEHICLE = mockVehicles.slice(0, 5).map((v) => ({
-  name: `${v.marca} ${v.modelo}`,
-  leads: v.leads_count,
-}));
-
-const MOCK_PERFORMANCE = mockVehicles.slice(0, 6).map((v) => ({
-  name: `${v.marca} ${v.modelo} ${v.ano}`,
-  views: v.visualizacoes,
-  leads: v.leads_count,
-  favs: v.favoritos_count,
-  rate: ((v.leads_count / v.visualizacoes) * 100).toFixed(1) + "%",
-}));
 
 const HEATMAP_DATA = Array.from({ length: 24 }, (_, h) => ({
   hour: `${String(h).padStart(2, "0")}h`,
@@ -112,30 +88,24 @@ export default function DashboardMetrics() {
     loading: viewsLoading,
     error: viewsError,
     temHistoricoSuficiente,
-  } = useVisualizacoesPorDia({ dias: USE_REAL_DATA ? dias : 7 });
+  } = useVisualizacoesPorDia({ dias });
 
-  // ── BarChart e performance: dados reais vs mock ─────────────────────────────
+  const leadsPerVehicle = veiculos.slice(0, 5).map((v) => ({
+    name: `${v.marca} ${v.modelo}`,
+    leads: v.leads_count,
+  }));
 
-  const leadsPerVehicle = USE_REAL_DATA
-    ? veiculos.slice(0, 5).map((v) => ({
-        name: `${v.marca} ${v.modelo}`,
-        leads: v.leads_count,
-      }))
-    : MOCK_LEADS_PER_VEHICLE;
-
-  const performanceTable = USE_REAL_DATA
-    ? veiculos.map((v) => ({
-        name: `${v.marca} ${v.modelo} ${v.ano}`,
-        views: v.visualizacoes,
-        leads: v.leads_count,
-        favs: v.favoritos_count,
-        rate:
-          v.visualizacoes > 0
-            ? ((v.leads_count / v.visualizacoes) * 100).toFixed(1) + "%"
-            : "0.0%",
-        preco: v.preco,
-      }))
-    : MOCK_PERFORMANCE;
+  const performanceTable = veiculos.map((v) => ({
+    name: `${v.marca} ${v.modelo} ${v.ano}`,
+    views: v.visualizacoes,
+    leads: v.leads_count,
+    favs: v.favoritos_count,
+    rate:
+      v.visualizacoes > 0
+        ? ((v.leads_count / v.visualizacoes) * 100).toFixed(1) + "%"
+        : "0.0%",
+    preco: v.preco,
+  }));
 
   // ── LineChart: tick formatter por período ─────────────────────────────────
 
@@ -168,69 +138,42 @@ export default function DashboardMetrics() {
       <div className="rounded-xl border border-border bg-background p-6">
         <h3 className="text-h4 text-text-primary mb-4">Visualizações ao longo do tempo</h3>
 
-        {/* Real data path */}
-        {USE_REAL_DATA && (
-          <>
-            {viewsLoading && <SkeletonChart height={280} />}
-            {!viewsLoading && viewsError && (
-              <div className="flex items-center justify-center h-[280px]">
-                <p className="text-small text-text-secondary">
-                  Não foi possível carregar o gráfico.
-                </p>
-              </div>
-            )}
-            {!viewsLoading && !viewsError && !temHistoricoSuficiente && (
-              <EmptyStateGrafico />
-            )}
-            {!viewsLoading && !viewsError && temHistoricoSuficiente && (
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={viewsData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="data"
-                      tick={{ fontSize: 12 }}
-                      stroke="hsl(var(--text-muted))"
-                      tickFormatter={tickFormatter}
-                      interval={xAxisInterval}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
-                    <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      labelFormatter={formatarDataEixo}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="total"
-                      name="Visualizações"
-                      stroke="hsl(var(--brand-primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "hsl(var(--brand-primary))" }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </>
+        {viewsLoading && <SkeletonChart height={280} />}
+        {!viewsLoading && viewsError && (
+          <div className="flex items-center justify-center h-[280px]">
+            <p className="text-small text-text-secondary">
+              Não foi possível carregar o gráfico.
+            </p>
+          </div>
         )}
-
-        {/* Mock data path */}
-        {!USE_REAL_DATA && (
+        {!viewsLoading && !viewsError && !temHistoricoSuficiente && (
+          <EmptyStateGrafico />
+        )}
+        {!viewsLoading && !viewsError && temHistoricoSuficiente && (
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={MOCK_VIEWS_7D}>
+              <LineChart data={viewsData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="data" tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
+                <XAxis
+                  dataKey="data"
+                  tick={{ fontSize: 12 }}
+                  stroke="hsl(var(--text-muted))"
+                  tickFormatter={tickFormatter}
+                  interval={xAxisInterval}
+                />
                 <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--text-muted))" />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  labelFormatter={formatarDataEixo}
+                />
                 <Line
                   type="monotone"
                   dataKey="total"
                   name="Visualizações"
                   stroke="hsl(var(--brand-primary))"
                   strokeWidth={2}
-                  dot={{ r: 4, fill: "hsl(var(--brand-primary))" }}
+                  dot={{ r: 3, fill: "hsl(var(--brand-primary))" }}
+                  activeDot={{ r: 5 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -241,7 +184,7 @@ export default function DashboardMetrics() {
       {/* Leads per vehicle — dados agregados totais, sem série temporal */}
       <div className="rounded-xl border border-border bg-background p-6">
         <h3 className="text-h4 text-text-primary mb-4">Leads por veículo</h3>
-        {USE_REAL_DATA && veicLoading ? (
+        {veicLoading ? (
           <SkeletonChart height={240} />
         ) : (
           <div className="h-[240px]">
@@ -269,7 +212,7 @@ export default function DashboardMetrics() {
         <div className="p-6 pb-0">
           <h3 className="text-h4 text-text-primary mb-4">Performance por anúncio</h3>
         </div>
-        {USE_REAL_DATA && veicLoading ? (
+        {veicLoading ? (
           <div className="p-6">
             <SkeletonChart height={180} />
           </div>
@@ -298,9 +241,7 @@ export default function DashboardMetrics() {
                   >
                     <td className="p-4 text-small text-text-primary font-medium">{row.name}</td>
                     <td className="p-4 text-right text-small text-text-secondary">
-                      {USE_REAL_DATA && "preco" in row
-                        ? formatarPreco(row.preco)
-                        : formatPrice((row as typeof MOCK_PERFORMANCE[0] & { preco?: number }).preco ?? 0)}
+                      {formatarPreco(row.preco)}
                     </td>
                     <td className="p-4 text-right text-small text-text-secondary">
                       {row.views.toLocaleString("pt-BR")}

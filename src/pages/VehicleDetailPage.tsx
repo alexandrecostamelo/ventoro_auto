@@ -3,12 +3,11 @@ import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
-import { vehicles as mockVehicles, garages as mockGarages, formatPrice, formatKm } from "@/data/mock";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { useVeiculo, useVeiculos } from "@/hooks/useVeiculos";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/contexts/AuthContext";
 import { veiculoDbParaMock, type VeiculoComFotos } from "@/utils/adapters";
-import { USE_REAL_DATA } from "@/config/flags";
 import { incrementarVisualizacao } from "@/lib/visualizacoes";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -54,14 +53,12 @@ export default function VehicleDetailPage() {
   // Hooks sempre chamados (regras do React)
   const { veiculo: veiculoDB, loading, error } = useVeiculo(slug ?? "");
   const { veiculos: similarDB } = useVeiculos(
-    USE_REAL_DATA && veiculoDB
-      ? { marca: veiculoDB.marca, por_pagina: 7 }
-      : {}
+    veiculoDB ? { marca: veiculoDB.marca, por_pagina: 7 } : {}
   );
 
   // Incrementar visualizações — fire-and-forget quando o ID ficar disponível
   useEffect(() => {
-    if (USE_REAL_DATA && veiculoDB?.id) {
+    if (veiculoDB?.id) {
       incrementarVisualizacao(veiculoDB.id);
     }
   }, [veiculoDB?.id]);
@@ -73,36 +70,26 @@ export default function VehicleDetailPage() {
 
   // ── Resolução dos dados ──────────────────────────────────────────────────────
 
-  const vehicle = USE_REAL_DATA
-    ? (veiculoDB ? veiculoDbParaMock(veiculoDB as unknown as VeiculoComFotos) : null)
-    : (mockVehicles.find((v) => v.slug === slug) ?? mockVehicles[0]);
+  const vehicle = veiculoDB ? veiculoDbParaMock(veiculoDB as unknown as VeiculoComFotos) : null;
 
-  // Garagem normalizada (campos comuns entre DB e mock)
+  // Garagem normalizada
   const garage: GarageInfo | null = (() => {
-    if (USE_REAL_DATA) {
-      const g = veiculoDB?.garagens;
-      return g ? { nome: g.nome, logo_url: g.logo_url, total_estoque: g.total_estoque, avaliacao: g.avaliacao, slug: g.slug } : null;
-    }
-    const g = vehicle?.garagem_id ? (mockGarages.find((g) => g.id === vehicle.garagem_id) ?? null) : null;
+    const g = veiculoDB?.garagens;
     return g ? { nome: g.nome, logo_url: g.logo_url, total_estoque: g.total_estoque, avaliacao: g.avaliacao, slug: g.slug } : null;
   })();
 
   // WhatsApp: garagem > telefone garagem > telefone perfil
-  const whatsappRaw = USE_REAL_DATA
-    ? (veiculoDB?.garagens?.whatsapp ?? veiculoDB?.garagens?.telefone ?? veiculoDB?.profiles?.telefone ?? null)
-    : null;
+  const whatsappRaw = veiculoDB?.garagens?.whatsapp ?? veiculoDB?.garagens?.telefone ?? veiculoDB?.profiles?.telefone ?? null;
   const whatsappUrl = whatsappRaw
     ? `https://wa.me/55${whatsappRaw.replace(/\D/g, "")}`
     : null;
 
   // Veículos similares
-  const similar = USE_REAL_DATA
-    ? similarDB.filter((v) => v.slug !== slug).slice(0, 6).map((v) => veiculoDbParaMock(v))
-    : mockVehicles.filter((v) => v.id !== vehicle?.id).slice(0, 6);
+  const similar = similarDB.filter((v) => v.slug !== slug).slice(0, 6).map((v) => veiculoDbParaMock(v));
 
   // Histórico de preço
   const priceHistoryData = (() => {
-    if (!USE_REAL_DATA || !veiculoDB?.historico_preco?.length) return HARDCODED_PRICE_HISTORY;
+    if (!veiculoDB?.historico_preco?.length) return HARDCODED_PRICE_HISTORY;
     return [...veiculoDB.historico_preco]
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       .map((h) => ({
@@ -113,11 +100,11 @@ export default function VehicleDetailPage() {
 
   // ── Estados de UI ────────────────────────────────────────────────────────────
 
-  const isLoading = USE_REAL_DATA && loading;
-  const isNotFound = USE_REAL_DATA && !loading && !vehicle && !error;
+  const isLoading = loading;
+  const isNotFound = !loading && !vehicle && !error;
   // PGRST116 = .single() sem resultado
-  const isNotFoundError = USE_REAL_DATA && !!error && (error.includes("PGRST116") || error.includes("multiple") || error.includes("no rows"));
-  const hasError = USE_REAL_DATA && !!error && !isNotFoundError;
+  const isNotFoundError = !!error && (error.includes("PGRST116") || error.includes("multiple") || error.includes("no rows"));
+  const hasError = !!error && !isNotFoundError;
 
   if (isLoading) return <PageSkeleton />;
   if (isNotFound || isNotFoundError) return <NotFoundState />;
@@ -400,14 +387,13 @@ export default function VehicleDetailPage() {
                 <div className="flex justify-center gap-6 mb-4 border-t border-border pt-4">
                   <button
                     onClick={() => {
-                      if (!USE_REAL_DATA) return;
                       if (!user) { navigate("/entrar"); return; }
                       toggleFavorito(vehicle.id);
                     }}
                     className="flex items-center gap-1 text-small text-text-muted hover:text-brand transition-colors"
                   >
-                    <Heart className={`h-4 w-4 transition-colors ${USE_REAL_DATA && isFavorito(vehicle.id) ? "fill-red-500 text-red-500" : ""}`} />
-                    {USE_REAL_DATA && isFavorito(vehicle.id) ? "Favoritado" : "Favoritar"}
+                    <Heart className={`h-4 w-4 transition-colors ${isFavorito(vehicle.id) ? "fill-red-500 text-red-500" : ""}`} />
+                    {isFavorito(vehicle.id) ? "Favoritado" : "Favoritar"}
                   </button>
                   <button className="flex items-center gap-1 text-small text-text-muted hover:text-brand transition-colors">
                     <Share2 className="h-4 w-4" /> Compartilhar

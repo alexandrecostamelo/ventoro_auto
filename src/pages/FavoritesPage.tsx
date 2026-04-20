@@ -11,26 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navbar } from "@/components/Navbar";
-import { vehicles, formatPrice, formatKm } from "@/data/mock";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { useFavoritos, type FavoritoEnriquecido } from "@/hooks/useFavoritos";
 import { useAuth } from "@/contexts/AuthContext";
-import { USE_REAL_DATA } from "@/config/flags";
-
-// ─── Mock local ───────────────────────────────────────────────────────────────
-
-interface FavVehicle {
-  vehicleId: string;
-  savedAt: string;
-  priceAtSave: number;
-  priceAlertEnabled: boolean;
-}
-
-const MOCK_FAVORITES: FavVehicle[] = vehicles.slice(0, 6).map((v, i) => ({
-  vehicleId: v.id,
-  savedAt: new Date(Date.now() - i * 86400000 * (i + 1)).toISOString(),
-  priceAtSave: v.preco + (i % 3 === 0 ? 5000 : i % 3 === 1 ? -2000 : 0),
-  priceAlertEnabled: i < 4,
-}));
 
 type SortBy = "recent" | "price_asc" | "price_desc" | "price_drop";
 
@@ -41,16 +24,8 @@ export default function FavoritesPage() {
   const { user, loading: authLoading } = useAuth();
   const { favoritosEnriquecidos, toggleFavorito, loading: favLoading, error } = useFavoritos();
 
-  // Estado mock (usado quando USE_REAL_DATA = false)
-  const [mockFavs, setMockFavs] = useState<FavVehicle[]>(MOCK_FAVORITES);
-
   // Alertas de preço locais (persistência futura — por enquanto só React state)
-  const [priceAlerts, setPriceAlerts] = useState<Record<string, boolean>>(() => {
-    if (!USE_REAL_DATA) {
-      return Object.fromEntries(MOCK_FAVORITES.map(f => [f.vehicleId, f.priceAlertEnabled]));
-    }
-    return {};
-  });
+  const [priceAlerts, setPriceAlerts] = useState<Record<string, boolean>>({});
 
   const [sortBy, setSortBy] = useState<SortBy>("recent");
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -58,22 +33,8 @@ export default function FavoritesPage() {
   // ── Dados resolvidos ─────────────────────────────────────────────────────────
 
   const favoritosData: FavoritoEnriquecido[] = useMemo(() => {
-    if (USE_REAL_DATA) return favoritosEnriquecidos;
-    return mockFavs
-      .map(fav => {
-        const v = vehicles.find(x => x.id === fav.vehicleId);
-        if (!v) return null;
-        return {
-          id: fav.vehicleId,
-          veiculo_id: fav.vehicleId,
-          savedAt: fav.savedAt,
-          lista_nome: "Sem categoria",
-          vehicle: v,
-          priceDiff: v.preco - fav.priceAtSave,
-        } satisfies FavoritoEnriquecido;
-      })
-      .filter((f): f is FavoritoEnriquecido => f !== null);
-  }, [USE_REAL_DATA ? favoritosEnriquecidos : mockFavs]);
+    return favoritosEnriquecidos;
+  }, [favoritosEnriquecidos]);
 
   const sorted = useMemo(() => {
     const copy = [...favoritosData];
@@ -90,11 +51,7 @@ export default function FavoritesPage() {
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   function handleRemove(veiculoId: string) {
-    if (USE_REAL_DATA) {
-      toggleFavorito(veiculoId); // optimistic via hook
-    } else {
-      setMockFavs(prev => prev.filter(f => f.vehicleId !== veiculoId));
-    }
+    toggleFavorito(veiculoId);
     setCompareIds(prev => prev.filter(c => c !== veiculoId));
   }
 
@@ -121,7 +78,7 @@ export default function FavoritesPage() {
     );
   }
 
-  if (USE_REAL_DATA && !user) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -153,7 +110,7 @@ export default function FavoritesPage() {
     );
   }
 
-  if (USE_REAL_DATA && favLoading) {
+  if (favLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -165,7 +122,7 @@ export default function FavoritesPage() {
     );
   }
 
-  if (USE_REAL_DATA && error) {
+  if (error) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />

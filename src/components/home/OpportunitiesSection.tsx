@@ -1,4 +1,5 @@
-import { vehicles, formatPrice, formatKm } from "@/data/mock";
+import { vehicles } from "@/data/mock";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { VehicleCard } from "@/components/VehicleCard";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";

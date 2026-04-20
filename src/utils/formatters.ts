@@ -26,6 +26,14 @@ export function formatarDataRelativa(data: string): string {
   return `há ${Math.floor(dias / 365)} anos`
 }
 
+export function formatPrice(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+}
+
+export function formatKm(value: number): string {
+  return value.toLocaleString("pt-BR") + " km";
+}
+
 export function gerarSlug(texto: string): string {
   return texto
     .toLowerCase()

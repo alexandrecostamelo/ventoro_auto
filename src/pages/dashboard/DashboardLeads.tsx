@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { leads as mockLeads } from "@/data/mock";
 import { MessageCircle, Phone, Calendar, Archive, Filter } from "lucide-react";
-import { USE_REAL_DATA } from "@/config/flags";
 import { useLeadsAnunciante } from "@/hooks/useLeadsAnunciante";
 import { formatarDataRelativa } from "@/utils/formatters";
 
@@ -63,28 +61,17 @@ export default function DashboardLeads() {
   const [filterStatus, setFilterStatus] = useState<string>("todos");
   const { leads: leadsReais, atualizarStatus, loading } = useLeadsAnunciante();
 
-  // Normalize to unified display type
-  const allLeads: LeadDisplay[] = USE_REAL_DATA
-    ? leadsReais.map((l) => ({
-        id: l.id,
-        nome: l.nome,
-        telefone: l.telefone,
-        veiculo_nome: l.veiculos
-          ? `${l.veiculos.marca} ${l.veiculos.modelo}`
-          : "Veículo",
-        origem: l.origem,
-        status: l.status,
-        data_iso: l.created_at,
-      }))
-    : mockLeads.map((l) => ({
-        id: l.id,
-        nome: l.nome,
-        telefone: l.telefone,
-        veiculo_nome: l.veiculo_nome,
-        origem: l.origem,
-        status: l.status,
-        data_iso: l.data,
-      }));
+  const allLeads: LeadDisplay[] = leadsReais.map((l) => ({
+    id: l.id,
+    nome: l.nome,
+    telefone: l.telefone,
+    veiculo_nome: l.veiculos
+      ? `${l.veiculos.marca} ${l.veiculos.modelo}`
+      : "Veículo",
+    origem: l.origem,
+    status: l.status,
+    data_iso: l.created_at,
+  }));
 
   const filtered =
     filterStatus === "todos" ? allLeads : allLeads.filter((l) => l.status === filterStatus);
@@ -117,10 +104,10 @@ export default function DashboardLeads() {
       </div>
 
       {/* Loading skeleton */}
-      {USE_REAL_DATA && loading && <SkeletonLeads />}
+      {loading && <SkeletonLeads />}
 
       {/* Table */}
-      {(!USE_REAL_DATA || !loading) && (
+      {!loading && (
         <div className="rounded-xl border border-border bg-background overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -161,21 +148,15 @@ export default function DashboardLeads() {
                       </div>
                     </td>
                     <td className="p-4">
-                      {USE_REAL_DATA ? (
-                        <select
-                          value={l.status}
-                          onChange={(e) => atualizarStatus(l.id, e.target.value as Parameters<typeof atualizarStatus>[1])}
-                          className={`rounded-full px-2.5 py-0.5 text-micro font-medium border-0 cursor-pointer appearance-none ${STATUS_CONFIG[l.status]?.color ?? ""}`}
-                        >
-                          {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                            <option key={k} value={k}>{v.label}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className={`rounded-full px-2.5 py-0.5 text-micro font-medium ${STATUS_CONFIG[l.status]?.color ?? ""}`}>
-                          {STATUS_CONFIG[l.status]?.label ?? l.status}
-                        </span>
-                      )}
+                      <select
+                        value={l.status}
+                        onChange={(e) => atualizarStatus(l.id, e.target.value as Parameters<typeof atualizarStatus>[1])}
+                        className={`rounded-full px-2.5 py-0.5 text-micro font-medium border-0 cursor-pointer appearance-none ${STATUS_CONFIG[l.status]?.color ?? ""}`}
+                      >
+                        {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="p-4">
                       <p className="text-micro text-text-muted">{formatarDataRelativa(l.data_iso)}</p>
@@ -209,11 +190,11 @@ export default function DashboardLeads() {
       )}
 
       {/* Empty state */}
-      {(!USE_REAL_DATA || !loading) && filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="text-center py-12">
           <Filter className="w-10 h-10 text-text-muted mx-auto mb-3" />
           <p className="text-body text-text-secondary">
-            {USE_REAL_DATA && filterStatus === "todos"
+            {filterStatus === "todos"
               ? "Você ainda não recebeu leads."
               : "Nenhum lead com este filtro."}
           </p>

@@ -12,7 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Navbar } from "@/components/Navbar";
-import { vehicles, formatPrice, formatKm } from "@/data/mock";
+import { vehicles } from "@/data/mock";
+import { formatPrice, formatKm } from "@/utils/formatters";
 
 interface MatchResult {
   vehicle: typeof vehicles[0];

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Vehicle, formatPrice, formatKm } from "@/data/mock";
+import type { Vehicle } from "@/types/vehicle";
+import { formatPrice, formatKm } from "@/utils/formatters";
 import { MapPin, Fuel, Sparkles, Heart } from "lucide-react";
 
 interface VehicleCardProps {
