@@ -15,9 +15,11 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import ComparePage from "./pages/ComparePage";
 import PublishAdPage from "./pages/PublishAdPage";
 import VenStudioPage from "./pages/VenStudioPage";
+import InspecaoPage from "./pages/InspecaoPage";
 import AlertsPage from "./pages/AlertsPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import SearchRequestPage from "./pages/SearchRequestPage";
+import NotificacoesPage from "./pages/NotificacoesPage";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import DashboardAds from "./pages/dashboard/DashboardAds";
@@ -31,6 +33,7 @@ import GarageStorefront from "./pages/garage/GarageStorefront";
 import GarageTeam from "./pages/garage/GarageTeam";
 import GarageReports from "./pages/garage/GarageReports";
 import GaragePlans from "./pages/garage/GaragePlans";
+import GarageMarketing from "./pages/garage/GarageMarketing";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +60,7 @@ const App = () => (
             <Route path="/minha-conta/anuncios" element={<DashboardLayout><DashboardAds /></DashboardLayout>} />
             <Route path="/minha-conta/leads" element={<DashboardLayout><DashboardLeads /></DashboardLayout>} />
             <Route path="/minha-conta/metricas" element={<DashboardLayout><DashboardMetrics /></DashboardLayout>} />
+            <Route path="/minha-conta/configuracoes" element={<DashboardLayout><PlaceholderPage title="Configurações" description="Gerencie suas preferências e dados da conta." /></DashboardLayout>} />
 
             {/* Dashboard da garagem */}
             <Route path="/painel" element={<GarageDashboardLayout><GarageDashboardHome /></GarageDashboardLayout>} />
@@ -64,12 +68,15 @@ const App = () => (
             <Route path="/painel/leads" element={<GarageDashboardLayout><GarageCRM /></GarageDashboardLayout>} />
             <Route path="/painel/vitrine" element={<GarageDashboardLayout><GarageStorefront /></GarageDashboardLayout>} />
             <Route path="/painel/equipe" element={<GarageDashboardLayout><GarageTeam /></GarageDashboardLayout>} />
+            <Route path="/painel/marketing" element={<GarageDashboardLayout><GarageMarketing /></GarageDashboardLayout>} />
             <Route path="/painel/relatorios" element={<GarageDashboardLayout><GarageReports /></GarageDashboardLayout>} />
             <Route path="/painel/planos" element={<GarageDashboardLayout><GaragePlans /></GarageDashboardLayout>} />
 
             <Route path="/studio" element={<VenStudioPage />} />
+            <Route path="/inspecionar/:slug" element={<InspecaoPage />} />
             <Route path="/alertas" element={<AlertsPage />} />
             <Route path="/favoritos" element={<FavoritesPage />} />
+            <Route path="/notificacoes" element={<NotificacoesPage />} />
             <Route path="/pedido-de-busca" element={<SearchRequestPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

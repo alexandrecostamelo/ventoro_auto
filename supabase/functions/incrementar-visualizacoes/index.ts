@@ -10,6 +10,8 @@ const ALLOWED_ORIGINS = new Set([
   'https://www.ventoro.com.br',
   'http://localhost:5173',
   'http://localhost:3000',
+  // TODO: substituir pelo domínio real após deploy Vercel
+  'https://ventoro.vercel.app',
 ])
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

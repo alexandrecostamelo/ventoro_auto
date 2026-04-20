@@ -24,9 +24,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Auth guard — redireciona para /entrar se não estiver logado
+  // Garagens devem usar /painel
   useEffect(() => {
     if (!loading && !user) navigate("/entrar");
-  }, [loading, user, navigate]);
+    if (!loading && profile?.tipo === 'garagem') navigate("/painel");
+  }, [loading, user, profile, navigate]);
 
   if (loading) {
     return (

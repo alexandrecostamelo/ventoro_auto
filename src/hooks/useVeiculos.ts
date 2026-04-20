@@ -16,7 +16,7 @@ interface FiltrosVeiculo {
   estado?: string
   tipo_anunciante?: 'particular' | 'garagem'
   destaque?: boolean
-  ordenar?: 'preco_asc' | 'preco_desc' | 'ano_desc' | 'km_asc' | 'recentes'
+  ordenar?: 'preco_asc' | 'preco_desc' | 'ano_desc' | 'km_asc' | 'recentes' | 'relevancia'
   pagina?: number
   por_pagina?: number
 }
@@ -56,7 +56,17 @@ export function useVeiculos(filtros: FiltrosVeiculo = {}) {
         case 'preco_desc': query = query.order('preco', { ascending: false }); break
         case 'ano_desc': query = query.order('ano', { ascending: false }); break
         case 'km_asc': query = query.order('quilometragem', { ascending: true }); break
-        default: query = query.order('created_at', { ascending: false })
+        case 'relevancia':
+          query = query
+            .order('destaque', { ascending: false })
+            .order('score_confianca', { ascending: false })
+            .order('publicado_em', { ascending: false, nullsFirst: false })
+          break
+        default:
+          query = query
+            .order('destaque', { ascending: false })
+            .order('score_confianca', { ascending: false })
+            .order('publicado_em', { ascending: false, nullsFirst: false })
       }
 
       const pagina = filtros.pagina ?? 1
@@ -92,7 +102,7 @@ export function useVeiculo(slug: string) {
       setError(null)
       const { data, error } = await supabase
         .from('veiculos')
-        .select('*, fotos_veiculo(*), conteudo_ia(*), historico_preco(*), profiles!anunciante_id(*), garagens(*)')
+        .select('*, fotos_veiculo(*), conteudo_ia(*), historico_preco(*), inspecao_visual(*), profiles!anunciante_id(*), garagens(*)')
         .eq('slug', slug)
         .eq('status', 'publicado')
         .single()

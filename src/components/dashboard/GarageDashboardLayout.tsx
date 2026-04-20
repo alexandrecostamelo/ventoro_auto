@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMinhaGaragem } from "@/hooks/useMinhaGaragem";
 import {
   LayoutDashboard, Package, Kanban, Store, UserCog, FileBarChart,
-  CreditCard, LogOut, Menu, X, Building2,
+  CreditCard, LogOut, Menu, X, Building2, Megaphone,
 } from "lucide-react";
 
 const PLANO_LIMITE: Record<string, number | null> = {
@@ -29,6 +29,7 @@ const navSections = [
     items: [
       { label: "Vitrine", icon: Store, path: "/painel/vitrine" },
       { label: "Equipe", icon: UserCog, path: "/painel/equipe" },
+      { label: "Marketing", icon: Megaphone, path: "/painel/marketing" },
       { label: "Relatórios", icon: FileBarChart, path: "/painel/relatorios" },
       { label: "Planos", icon: CreditCard, path: "/painel/planos" },
     ],

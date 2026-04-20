@@ -101,6 +101,7 @@ export interface Database {
           selo_video_ia: boolean
           selo_inspecao: boolean
           destaque: boolean
+          destaque_ate: string | null
           visualizacoes: number
           favoritos_count: number
           leads_count: number
@@ -234,6 +235,79 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['pagamentos']['Row'], 'created_at'>
         Update: Partial<Database['public']['Tables']['pagamentos']['Insert']>
       }
+      criativos_ads: {
+        Row: {
+          id: string
+          created_at: string
+          veiculo_id: string
+          garagem_id: string | null
+          anunciante_id: string
+          formato: 'feed' | 'stories' | 'google_display'
+          copy_primaria: string
+          copy_secundaria: string
+          cta: string
+          segmentacao: Json
+          veiculo_snapshot: Json
+          foto_url: string | null
+          modelo_ia: string
+        }
+        Insert: Omit<Database['public']['Tables']['criativos_ads']['Row'], 'created_at' | 'id' | 'cta' | 'modelo_ia'> & { id?: string; cta?: string; modelo_ia?: string }
+        Update: Partial<Database['public']['Tables']['criativos_ads']['Insert']>
+      }
+      cache_fipe: {
+        Row: {
+          id: string
+          created_at: string
+          marca: string
+          modelo: string
+          ano: number
+          combustivel: string
+          codigo_fipe: string | null
+          preco_fipe: number
+          referencia_mes: string | null
+          preco_sugerido_min: number
+          preco_sugerido_max: number
+          dados_api: Json | null
+          expira_em: string
+        }
+        Insert: Omit<Database['public']['Tables']['cache_fipe']['Row'], 'created_at' | 'id' | 'expira_em'> & { id?: string; expira_em?: string }
+        Update: Partial<Database['public']['Tables']['cache_fipe']['Insert']>
+      }
+      inspecao_visual: {
+        Row: {
+          id: string
+          created_at: string
+          veiculo_id: string
+          anunciante_id: string
+          score_condicao: number
+          danos: Json
+          resumo: string | null
+          fotos_inspecao: Json
+          modelo_ia: string
+          tempo_ms: number | null
+          custo_estimado: number
+        }
+        Insert: Omit<Database['public']['Tables']['inspecao_visual']['Row'], 'created_at' | 'id' | 'modelo_ia' | 'custo_estimado'> & { id?: string; modelo_ia?: string; custo_estimado?: number }
+        Update: Partial<Database['public']['Tables']['inspecao_visual']['Insert']>
+      }
+      uso_ia: {
+        Row: {
+          id: string
+          created_at: string
+          user_id: string
+          veiculo_id: string | null
+          foto_id: string | null
+          tipo: 'venstudio' | 'descricao_ia' | 'outro'
+          cenario: string | null
+          modelo_ia: string | null
+          custo_estimado: number
+          tempo_ms: number | null
+          status: 'ok' | 'erro'
+          erro_msg: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['uso_ia']['Row'], 'created_at' | 'id' | 'custo_estimado' | 'status'> & { id?: string; custo_estimado?: number; status?: 'ok' | 'erro' }
+        Update: Partial<Database['public']['Tables']['uso_ia']['Insert']>
+      }
     }
     Views: {
       [_ in never]: never
@@ -241,6 +315,22 @@ export interface Database {
     Functions: {
       incrementar_visualizacoes: {
         Args: { veiculo_id: string }
+        Returns: void
+      }
+      contar_uso_ia_hoje: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      contar_uso_ia_mes: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      expirar_destaques: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      atualizar_selo_inspecao: {
+        Args: { p_veiculo_id: string; p_score_condicao: number }
         Returns: void
       }
     }

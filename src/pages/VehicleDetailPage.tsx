@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { VehicleCard } from "@/components/VehicleCard";
@@ -12,10 +13,12 @@ import { incrementarVisualizacao } from "@/lib/visualizacoes";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   MapPin, Eye, Heart, Calendar, MessageCircle, Share2, Shield, Sparkles,
-  ChevronRight, AlertCircle, ArrowLeft,
+  ChevronRight, ChevronDown, AlertCircle, ArrowLeft, Star,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+
+const SITE_URL = "https://ventoro.com.br";
 
 // Fallback usado quando não há histórico real no banco
 const HARDCODED_PRICE_HISTORY = [
@@ -47,6 +50,7 @@ export default function VehicleDetailPage() {
 
   const [mainPhoto, setMainPhoto] = useState(0);
   const [showFinancing, setShowFinancing] = useState(false);
+  const [faqAberto, setFaqAberto] = useState<number | null>(null);
   const [entrada, setEntrada] = useState(30);
   const [prazo, setPrazo] = useState(48);
 
@@ -71,6 +75,21 @@ export default function VehicleDetailPage() {
   // ── Resolução dos dados ──────────────────────────────────────────────────────
 
   const vehicle = veiculoDB ? veiculoDbParaMock(veiculoDB as unknown as VeiculoComFotos) : null;
+
+  // Conteúdo IA (destaques, FAQ) — conteudo_ia é array mas relação é 1:1
+  const conteudoIA = veiculoDB?.conteudo_ia?.[0] ?? null;
+  const destaques = conteudoIA?.highlights?.length ? conteudoIA.highlights : [];
+  const faqItems = Array.isArray(conteudoIA?.faq) ? (conteudoIA.faq as { pergunta: string; resposta: string }[]) : [];
+
+  // Inspeção visual (a mais recente)
+  const inspecao = (() => {
+    const arr = veiculoDB?.inspecao_visual;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+    // Ordenar por created_at desc (mais recente primeiro)
+    const sorted = [...arr].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return sorted[0];
+  })();
+  const inspecaoDanos = Array.isArray(inspecao?.danos) ? (inspecao.danos as Array<{ tipo: string; severidade: string; descricao: string; regiao: string }>) : [];
 
   // Garagem normalizada
   const garage: GarageInfo | null = (() => {
@@ -111,6 +130,65 @@ export default function VehicleDetailPage() {
   if (hasError) return <ErrorState message={error!} />;
   if (!vehicle) return null;
 
+  // ── SEO — meta tags, structured data ─────────────────────────────────────────
+
+  const seoTitle = `${vehicle.marca} ${vehicle.modelo} ${vehicle.ano}${vehicle.versao ? ` ${vehicle.versao}` : ""} | ${vehicle.cidade}/${vehicle.estado} | Ventoro`;
+  const seoDescription = `${vehicle.marca} ${vehicle.modelo} ${vehicle.ano} por ${formatPrice(vehicle.preco)}. ${formatKm(vehicle.quilometragem)}. ${vehicle.combustivel}/${vehicle.cambio}. ${vehicle.cidade}. Ver fotos e detalhes no Ventoro.`;
+  const canonicalUrl = `${SITE_URL}/veiculo/${vehicle.slug}`;
+  const ogImage = vehicle.fotos[0]?.startsWith("http") ? vehicle.fotos[0] : `${SITE_URL}${vehicle.fotos[0]}`;
+
+  const sellerName = garage?.nome ?? "Vendedor particular";
+  const sellerType = garage ? "Organization" : "Person";
+
+  const structuredDataVehicle = {
+    "@context": "https://schema.org/",
+    "@type": "Vehicle",
+    "name": `${vehicle.marca} ${vehicle.modelo} ${vehicle.ano}`,
+    "model": `${vehicle.modelo}${vehicle.versao ? ` ${vehicle.versao}` : ""}`,
+    "brand": { "@type": "Brand", "name": vehicle.marca },
+    "vehicleModelDate": String(vehicle.ano),
+    "mileageFromOdometer": {
+      "@type": "QuantitativeValue",
+      "value": vehicle.quilometragem,
+      "unitCode": "KMT",
+    },
+    ...(vehicle.cor && { "color": vehicle.cor }),
+    "fuelType": vehicle.combustivel,
+    "vehicleTransmission": vehicle.cambio === "automatico" ? "Automatic" : vehicle.cambio === "cvt" ? "CVT" : "Manual",
+    "offers": {
+      "@type": "Offer",
+      "price": String(vehicle.preco),
+      "priceCurrency": "BRL",
+      "availability": "https://schema.org/InStock",
+      "url": canonicalUrl,
+      "seller": { "@type": sellerType, "name": sellerName },
+    },
+    "image": vehicle.fotos.filter((f) => f.startsWith("http")),
+    ...(vehicle.descricao && { "description": vehicle.descricao }),
+  };
+
+  const structuredDataBreadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": SITE_URL },
+      { "@type": "ListItem", "position": 2, "name": "Carros", "item": `${SITE_URL}/buscar` },
+      { "@type": "ListItem", "position": 3, "name": vehicle.marca, "item": `${SITE_URL}/buscar?marca=${encodeURIComponent(vehicle.marca)}` },
+      { "@type": "ListItem", "position": 4, "name": vehicle.modelo, "item": `${SITE_URL}/buscar?marca=${encodeURIComponent(vehicle.marca)}&modelo=${encodeURIComponent(vehicle.modelo)}` },
+      { "@type": "ListItem", "position": 5, "name": `${vehicle.ano}` },
+    ],
+  };
+
+  const structuredDataFAQ = faqItems.length > 0 ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqItems.map((f) => ({
+      "@type": "Question",
+      "name": f.pergunta,
+      "acceptedAnswer": { "@type": "Answer", "text": f.resposta },
+    })),
+  } : null;
+
   // ── Derivados do veículo ─────────────────────────────────────────────────────
 
   const pctDiff = vehicle.preco_sugerido.max > 0
@@ -118,9 +196,9 @@ export default function VehicleDetailPage() {
     : 0;
 
   const priceTag = {
-    abaixo: { label: `▼ ${pctDiff}% abaixo da média`, className: "bg-brand-light text-brand-dark" },
-    na_media: { label: "= preço justo", className: "bg-amber-50 text-amber-700" },
-    acima: { label: `▲ ${pctDiff}% acima da média`, className: "bg-red-50 text-red-700" },
+    abaixo: { label: `▼ ${pctDiff}% abaixo da FIPE`, className: "bg-brand-light text-brand-dark" },
+    na_media: { label: "Preço FIPE ✓", className: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    acima: { label: `▲ ${pctDiff}% acima da FIPE`, className: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   }[vehicle.preco_status];
 
   const scoreColor = vehicle.score_confianca >= 90 ? "text-trust-high" : vehicle.score_confianca >= 75 ? "text-trust-medium" : "text-trust-low";
@@ -134,16 +212,50 @@ export default function VehicleDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={canonicalUrl} />
+
+        {/* Open Graph */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDescription} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:site_name" content="Ventoro" />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="product:price:amount" content={String(vehicle.preco)} />
+        <meta property="product:price:currency" content="BRL" />
+
+        {/* Twitter Cards */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={seoTitle} />
+        <meta name="twitter:description" content={seoDescription} />
+        <meta name="twitter:image" content={ogImage} />
+
+        {/* Structured Data */}
+        <script type="application/ld+json">{JSON.stringify(structuredDataVehicle)}</script>
+        <script type="application/ld+json">{JSON.stringify(structuredDataBreadcrumb)}</script>
+        {structuredDataFAQ && (
+          <script type="application/ld+json">{JSON.stringify(structuredDataFAQ)}</script>
+        )}
+      </Helmet>
+
       <Navbar />
       <div className="pt-20 container mx-auto px-4 lg:px-8 max-w-[1080px]">
-        {/* Breadcrumb */}
-        <div className="text-small text-text-muted mb-4">
+        {/* Breadcrumbs */}
+        <nav aria-label="Breadcrumb" className="text-small text-text-muted mb-4">
           <Link to="/" className="hover:text-brand">Home</Link>
           <span className="mx-2">›</span>
-          <Link to="/buscar" className="hover:text-brand">Buscar</Link>
+          <Link to="/buscar" className="hover:text-brand">Carros</Link>
           <span className="mx-2">›</span>
-          <span className="text-text-primary">{vehicle.marca} {vehicle.modelo} {vehicle.versao} {vehicle.ano}</span>
-        </div>
+          <Link to={`/buscar?marca=${encodeURIComponent(vehicle.marca)}`} className="hover:text-brand">{vehicle.marca}</Link>
+          <span className="mx-2">›</span>
+          <Link to={`/buscar?marca=${encodeURIComponent(vehicle.marca)}&modelo=${encodeURIComponent(vehicle.modelo)}`} className="hover:text-brand">{vehicle.modelo}</Link>
+          <span className="mx-2">›</span>
+          <span className="text-text-primary">{vehicle.ano}</span>
+        </nav>
 
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main content */}
@@ -153,7 +265,7 @@ export default function VehicleDetailPage() {
               <div className="flex-1 relative aspect-video rounded-lg overflow-hidden bg-surface-secondary">
                 <img
                   src={vehicle.fotos[mainPhoto]}
-                  alt={`${vehicle.marca} ${vehicle.modelo}`}
+                  alt={`${vehicle.marca} ${vehicle.modelo} ${vehicle.ano} — foto ${mainPhoto + 1}`}
                   className="h-full w-full object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder-car.jpg"; }}
                 />
@@ -175,8 +287,9 @@ export default function VehicleDetailPage() {
                     >
                       <img
                         src={foto}
-                        alt=""
+                        alt={`${vehicle.marca} ${vehicle.modelo} ${vehicle.ano} — foto ${i + 1}`}
                         className="h-full w-full object-cover"
+                        loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder-car.jpg"; }}
                       />
                     </button>
@@ -195,12 +308,13 @@ export default function VehicleDetailPage() {
                 </span>
                 {vehicle.selo_inspecao && (
                   <span className="rounded-full bg-brand-light px-2.5 py-1 text-micro font-medium text-brand-dark">
-                    <Shield className="inline h-3 w-3 mr-1" />Inspeção IA
+                    <Shield className="inline h-3 w-3 mr-1" />
+                    Inspeção IA{inspecao ? ` · ${inspecao.score_condicao}/100` : ''}
                   </span>
                 )}
               </div>
               <h1 className="font-display text-[32px] font-bold text-text-primary leading-tight">
-                {vehicle.marca} {vehicle.modelo} {vehicle.versao}
+                {vehicle.marca} {vehicle.modelo} {vehicle.ano}{vehicle.versao ? ` ${vehicle.versao}` : ""}
               </h1>
               <p className="text-body text-text-secondary mt-1">
                 {vehicle.ano} · {formatKm(vehicle.quilometragem)} · {vehicle.cambio} · {vehicle.combustivel}
@@ -248,7 +362,7 @@ export default function VehicleDetailPage() {
             <div className="rounded-lg border border-brand/30 bg-brand-light p-5 mb-8">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="h-5 w-5 text-brand" />
-                <h3 className="font-display text-lg font-semibold text-text-primary">Análise Ventoro IA</h3>
+                <h2 className="font-display text-lg font-semibold text-text-primary">Análise Ventoro IA</h2>
               </div>
               <p className="text-body text-text-secondary mb-4">
                 O {vehicle.marca} {vehicle.modelo} {vehicle.versao} {vehicle.ano} apresenta excelente estado de conservação,
@@ -275,7 +389,7 @@ export default function VehicleDetailPage() {
             {/* Optionals */}
             {vehicle.opcionais.length > 0 && (
               <div className="mb-8">
-                <h3 className="font-display text-lg font-semibold text-text-primary mb-3">Opcionais</h3>
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-3">Opcionais</h2>
                 <div className="flex flex-wrap gap-2">
                   {vehicle.opcionais.map((opt) => (
                     <span key={opt} className="rounded-full bg-surface-secondary px-3 py-1.5 text-small text-text-secondary">{opt}</span>
@@ -287,14 +401,103 @@ export default function VehicleDetailPage() {
             {/* Description */}
             {vehicle.descricao && (
               <div className="mb-8">
-                <h3 className="font-display text-lg font-semibold text-text-primary mb-3">Descrição</h3>
-                <p className="text-body text-text-secondary leading-relaxed">{vehicle.descricao}</p>
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-3">Descrição</h2>
+                <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{vehicle.descricao}</p>
+              </div>
+            )}
+
+            {/* Destaques (from IA) */}
+            {destaques.length > 0 && (
+              <div className="mb-8">
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-3">Destaques</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {destaques.map((d, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-surface-card p-3">
+                      <Star className="h-4 w-4 text-brand mt-0.5 flex-shrink-0" />
+                      <span className="text-small text-text-secondary">{d}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* FAQ (from IA) */}
+            {faqItems.length > 0 && (
+              <div className="mb-8">
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-3">Perguntas frequentes</h2>
+                <div className="space-y-2">
+                  {faqItems.map((f, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-surface-card overflow-hidden">
+                      <button
+                        onClick={() => setFaqAberto(faqAberto === i ? null : i)}
+                        className="w-full flex items-center justify-between p-4 text-left hover:bg-surface-secondary/50 transition-colors"
+                      >
+                        <span className="text-small font-medium text-text-primary">{f.pergunta}</span>
+                        <ChevronDown className={`h-4 w-4 text-text-muted flex-shrink-0 transition-transform ${faqAberto === i ? "rotate-180" : ""}`} />
+                      </button>
+                      {faqAberto === i && (
+                        <div className="px-4 pb-4 pt-0">
+                          <p className="text-small text-text-secondary leading-relaxed">{f.resposta}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Inspeção Visual IA */}
+            {inspecao && (
+              <div className="mb-8">
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-3 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-brand" />
+                  Inspeção Visual IA
+                </h2>
+                <div className="rounded-lg border border-brand/30 bg-brand-light p-5">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="flex items-center justify-center w-16 h-16 rounded-full border-3 border-brand bg-background">
+                      <span className="font-mono text-xl font-bold text-text-primary">{inspecao.score_condicao}</span>
+                    </div>
+                    <div>
+                      <p className="text-body font-semibold text-text-primary">
+                        {inspecao.score_condicao >= 90 ? 'Excelente estado'
+                          : inspecao.score_condicao >= 75 ? 'Bom estado'
+                          : inspecao.score_condicao >= 60 ? 'Estado razoável'
+                          : 'Atenção necessária'}
+                      </p>
+                      <p className="text-small text-text-secondary mt-0.5">
+                        {inspecao.resumo}
+                      </p>
+                    </div>
+                  </div>
+                  {inspecaoDanos.length > 0 && (
+                    <div className="space-y-2">
+                      {inspecaoDanos.slice(0, 3).map((d, i) => (
+                        <div key={i} className="flex items-center gap-2 text-small">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            d.severidade === 'grave' ? 'bg-red-500' : d.severidade === 'moderado' ? 'bg-orange-500' : 'bg-amber-500'
+                          }`} />
+                          <span className="text-text-secondary">{d.descricao}</span>
+                        </div>
+                      ))}
+                      {inspecaoDanos.length > 3 && (
+                        <p className="text-micro text-text-muted">+{inspecaoDanos.length - 3} outro(s) dano(s) detectado(s)</p>
+                      )}
+                    </div>
+                  )}
+                  {inspecaoDanos.length === 0 && (
+                    <p className="text-small text-brand-dark font-medium">Nenhum dano detectado nas fotos analisadas.</p>
+                  )}
+                  <p className="text-micro text-text-muted mt-3">
+                    Inspeção realizada em {new Date(inspecao.created_at).toLocaleDateString('pt-BR')} · Análise por IA
+                  </p>
+                </div>
               </div>
             )}
 
             {/* Price history */}
             <div className="mb-8">
-              <h3 className="font-display text-lg font-semibold text-text-primary mb-3">Histórico de preço</h3>
+              <h2 className="font-display text-lg font-semibold text-text-primary mb-3">Histórico de preço</h2>
               <div className="rounded-lg border border-border bg-surface-card p-4 h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={priceHistoryData}>
@@ -342,7 +545,7 @@ export default function VehicleDetailPage() {
             {/* Similar vehicles */}
             {similar.length > 0 && (
               <div className="mb-8">
-                <h3 className="font-display text-lg font-semibold text-text-primary mb-4">Você pode gostar também</h3>
+                <h2 className="font-display text-lg font-semibold text-text-primary mb-4">Você pode gostar também</h2>
                 <div className="flex gap-4 overflow-x-auto pb-4">
                   {similar.map((v) => (
                     <div key={v.id} className="min-w-[260px] max-w-[260px]">

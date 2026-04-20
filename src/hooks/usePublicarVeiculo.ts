@@ -23,8 +23,13 @@ export interface DadosNovoVeiculo {
   fotos: string[]
   // Step 3 — VenStudio IA
   studioProcessed: boolean
-  // Step 4 — descrição
+  studioCenario: string
+  studioMelhorarQualidade: boolean
+  // Step 4 — copiloto IA
+  titulo: string
   descricao: string
+  destaques: string[]
+  faq: { pergunta: string; resposta: string }[]
   // Step 5 — preço e documentação
   preco: string
   aceitaTroca: boolean
@@ -36,12 +41,18 @@ export interface DadosNovoVeiculo {
   plano: string
 }
 
+export interface FotoPublicada {
+  id: string
+  url_original: string
+  ordem: number
+}
+
 interface PublicarResult {
   publicar: (
     dados: DadosNovoVeiculo,
     fotoFiles?: File[],
     onProgress?: (n: number, total: number) => void,
-  ) => Promise<{ id: string; slug: string } | null>
+  ) => Promise<{ id: string; slug: string; fotos: FotoPublicada[] } | null>
   loading: boolean
   error: Error | null
 }
@@ -81,7 +92,7 @@ export function usePublicarVeiculo(): PublicarResult {
     dados: DadosNovoVeiculo,
     fotoFiles?: File[],
     onProgress?: (n: number, total: number) => void,
-  ): Promise<{ id: string; slug: string } | null> => {
+  ): Promise<{ id: string; slug: string; fotos: FotoPublicada[] } | null> => {
     if (!user || !profile) {
       setError(new Error('Usuário não autenticado'))
       return null
@@ -175,6 +186,7 @@ export function usePublicarVeiculo(): PublicarResult {
     }
 
     // ── Upload real de fotos ──────────────────────────────────────────────────
+    let fotosPublicadas: FotoPublicada[] = []
     if (fotoFiles && fotoFiles.length > 0) {
       const fotoInserts: Array<{
         veiculo_id: string
@@ -220,16 +232,38 @@ export function usePublicarVeiculo(): PublicarResult {
       }
 
       if (fotoInserts.length > 0) {
-        const { error: fotosError } = await supabase.from('fotos_veiculo').insert(fotoInserts)
+        const { data: fotosData, error: fotosError } = await supabase
+          .from('fotos_veiculo')
+          .insert(fotoInserts)
+          .select('id, url_original, ordem')
         if (fotosError) {
           console.warn('[usePublicarVeiculo] fotos_veiculo INSERT falhou:', fotosError.message)
+        }
+        if (fotosData) {
+          fotosPublicadas = fotosData
         }
       }
 
     }
 
+    // ── Salvar conteúdo IA (se gerado pelo copiloto) ──
+    if (dados.descricao || dados.destaques.length > 0 || dados.faq.length > 0) {
+      const { error: conteudoError } = await supabase.from('conteudo_ia').upsert({
+        veiculo_id: veiculo.id,
+        titulo: dados.titulo || null,
+        descricao: dados.descricao || null,
+        highlights: dados.destaques,
+        faq: dados.faq,
+        sugestoes: [],
+      }, { onConflict: 'veiculo_id' })
+
+      if (conteudoError) {
+        console.warn('[usePublicarVeiculo] conteudo_ia UPSERT falhou:', conteudoError.message)
+      }
+    }
+
     setLoading(false)
-    return veiculo
+    return { ...veiculo, fotos: fotosPublicadas }
   }
 
   return { publicar, loading, error }

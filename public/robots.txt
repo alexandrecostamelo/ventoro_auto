@@ -1,14 +1,9 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+Disallow: /minha-conta
+Disallow: /painel
+Disallow: /anunciar
+Disallow: /entrar
+Disallow: /cadastrar
+
+Sitemap: https://ventoro.com.br/sitemap.xml

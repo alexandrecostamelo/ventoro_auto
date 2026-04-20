@@ -17,6 +17,7 @@ export type VeiculoDetalhe = Database['public']['Tables']['veiculos']['Row'] & {
   fotos_veiculo: Database['public']['Tables']['fotos_veiculo']['Row'][]
   conteudo_ia: Database['public']['Tables']['conteudo_ia']['Row'][] | null
   historico_preco: Database['public']['Tables']['historico_preco']['Row'][] | null
+  inspecao_visual: Database['public']['Tables']['inspecao_visual']['Row'][] | null
   profiles: Database['public']['Tables']['profiles']['Row'] | null
   garagens: Database['public']['Tables']['garagens']['Row'] | null
 }

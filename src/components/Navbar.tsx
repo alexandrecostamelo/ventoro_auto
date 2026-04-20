@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { VentoroLogo } from "@/components/VentoroLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navLinks = [
   { label: "Comprar", href: "/buscar" },
@@ -58,6 +59,7 @@ export function Navbar() {
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
+          {!!user && <NotificationBell />}
           {!!user ? (
             <div className="flex items-center gap-3">
               <Link to="/minha-conta" className="flex items-center gap-2">
@@ -131,6 +133,9 @@ export function Navbar() {
               <>
                 <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="text-body text-text-primary font-medium">
                   {profile?.nome ?? "Minha conta"}
+                </Link>
+                <Link to="/notificacoes" onClick={() => setMenuOpen(false)} className="text-body text-text-secondary">
+                  Notificações
                 </Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="text-body text-text-secondary text-left">
                   Sair
