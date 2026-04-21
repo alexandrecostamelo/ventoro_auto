@@ -19,11 +19,11 @@ async function verifyUser(authHeader: string | null) {
 const CENARIOS_VALIDOS = ['showroom_escuro', 'estudio_branco', 'garagem_premium', 'urbano_noturno', 'neutro_gradiente'] as const
 type CenarioId = (typeof CENARIOS_VALIDOS)[number]
 const CENARIO_CONFIG: Record<CenarioId, { promptFluxFill: string }> = {
-  showroom_escuro: { promptFluxFill: 'Premium dark car showroom, polished black reflective marble floor, dramatic LED side lighting, dark charcoal walls, professional automotive photography, photorealistic' },
-  estudio_branco: { promptFluxFill: 'Professional white photography studio, infinite white cyclorama, soft diffused overhead lighting, clean seamless floor, commercial product photography, photorealistic' },
-  garagem_premium: { promptFluxFill: 'Industrial loft garage, textured polished concrete floor, warm amber focused lighting, exposed brick and metal elements, moody atmospheric automotive workshop, photorealistic' },
-  urbano_noturno: { promptFluxFill: 'Modern city street at night, wet asphalt reflecting neon lights, cyberpunk atmosphere, defocused building lights, cinematic automotive photography, photorealistic' },
-  neutro_gradiente: { promptFluxFill: 'Professional gradient background, smooth transition charcoal gray to deep black, subtle radial lighting, minimalist automotive advertising background, photorealistic' },
+  showroom_escuro: { promptFluxFill: 'Clean empty car dealership showroom interior, dark reflective tile floor, simple modern overhead lighting, plain dark walls, no decorations, no text, no logos, no other vehicles, background only, photographic, 8k' },
+  estudio_branco: { promptFluxFill: 'Empty white room, plain white floor and walls, soft even overhead lighting, no equipment visible, no text, no logos, simple clean white background, bright and luminous, photographic, 8k' },
+  garagem_premium: { promptFluxFill: 'Simple clean garage interior, concrete floor, warm overhead lighting, plain walls, no decorations, no text, no logos, no other vehicles, background only, photographic, 8k' },
+  urbano_noturno: { promptFluxFill: 'City street at night, dark wet asphalt road, distant blurred city lights, no text, no signs, no logos, no other vehicles, background only, photographic, 8k' },
+  neutro_gradiente: { promptFluxFill: 'Plain dark gradient background, smooth gray to black transition, subtle center lighting, no text, no logos, no patterns, simple clean backdrop, photographic, 8k' },
 }
 const ALLOWED_ORIGINS = new Set(['https://ventoro.com.br', 'https://www.ventoro.com.br', 'http://localhost:5173', 'http://localhost:8080', 'https://ventoro-auto.vercel.app'])
 function corsHeaders(origin: string | null) {
@@ -159,75 +159,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .png()
       .toBuffer()
 
-    // Veículo centrado em canvas cinza
+    // Veículo centrado em canvas branco-neutro (melhor para inpainting)
     const xOff = Math.round((canvasSize - scaledW) / 2)
     const yOff = Math.round((canvasSize - scaledH) / 2)
 
     const inputImage = await sharp({
-      create: { width: canvasSize, height: canvasSize, channels: 4, background: { r: 128, g: 128, b: 128, alpha: 255 } },
+      create: { width: canvasSize, height: canvasSize, channels: 4, background: { r: 240, g: 240, b: 240, alpha: 255 } },
     })
       .composite([{ input: veiculoResized, left: xOff, top: yOff, blend: 'over' }])
       .png()
       .toBuffer()
 
-    // ── Criar máscara inversa dilatada (branco = área a gerar, preto = preservar) ──
-    // Extrair alpha do veículo resized, inverter, dilatar 5px
-    const alphaRaw = await sharp(veiculoResized).extractChannel(3).raw().toBuffer()
-    const maskRaw = Buffer.alloc(scaledW * scaledH)
-    for (let i = 0; i < alphaRaw.length; i++) {
-      maskRaw[i] = alphaRaw[i] > 128 ? 0 : 255 // inverso: veículo = preto, fundo = branco
-    }
+    // ── Criar máscara com dilatação + feathering ──
+    // 1. Alpha binário → 2. Dilatar 12px → 3. Inverter → 4. Feather
+    const DILATION_PX = 12
+    const FEATHER_SIGMA = 3
 
-    // Dilatar 5px (erosão do preto = dilatação da borda de proteção)
-    const dilateRadius = 5
-    const dilatedRaw = Buffer.from(maskRaw)
-    for (let y = 0; y < scaledH; y++) {
-      for (let x = 0; x < scaledW; x++) {
-        if (maskRaw[y * scaledW + x] === 255) continue // já é branco (fundo)
-        // Pixel é preto (veículo). Verificar se vizinhos são brancos.
-        // Se sim, manter preto (borda de proteção). Se distante, inverter não aplica.
-        // Na verdade: dilatar = expandir a área preta (veículo) em 5px
-        let shouldExpand = false
-        for (let dy = -dilateRadius; dy <= dilateRadius && !shouldExpand; dy++) {
-          for (let dx = -dilateRadius; dx <= dilateRadius && !shouldExpand; dx++) {
-            const ny = y + dy, nx = x + dx
-            if (ny < 0 || ny >= scaledH || nx < 0 || nx >= scaledW) continue
-            if (maskRaw[ny * scaledW + nx] === 0) { // vizinho é preto (veículo)
-              // Estamos no pixel branco (fundo), mas perto do veículo
-              // Nada a fazer aqui — queremos expandir preto, não branco
-            }
-          }
-        }
-      }
-    }
-
-    // Abordagem mais simples: dilatar = expandir preto (veículo) por 5px
-    const finalMaskRaw = Buffer.alloc(scaledW * scaledH, 255) // tudo branco
-    for (let y = 0; y < scaledH; y++) {
-      for (let x = 0; x < scaledW; x++) {
-        if (maskRaw[y * scaledW + x] === 0) { // pixel do veículo
-          // Pintar 5px ao redor como preto
-          for (let dy = -dilateRadius; dy <= dilateRadius; dy++) {
-            for (let dx = -dilateRadius; dx <= dilateRadius; dx++) {
-              const ny = y + dy, nx = x + dx
-              if (ny >= 0 && ny < scaledH && nx >= 0 && nx < scaledW) {
-                finalMaskRaw[ny * scaledW + nx] = 0
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Compor máscara no canvas 1024x1024
-    const maskSmall = await sharp(finalMaskRaw, { raw: { width: scaledW, height: scaledH, channels: 1 } })
+    // Extrair alpha → binário
+    const alphaRaw = await sharp(veiculoResized)
+      .extractChannel(3)
+      .threshold(128)
       .png()
       .toBuffer()
 
+    // Dilatar: blur + threshold baixo = expansão da região do veículo
+    const dilated = await sharp(alphaRaw)
+      .blur(DILATION_PX)
+      .threshold(10)
+      .png()
+      .toBuffer()
+
+    // Inverter + feather: vehicle=0(keep), bg=255(inpaint), bordas suaves
+    const maskSmall = await sharp(dilated)
+      .negate()
+      .blur(FEATHER_SIGMA)
+      .png()
+      .toBuffer()
+
+    // Compor no canvas 1024x1024 (fundo branco = inpaint tudo que não é veículo)
     const maskImage = await sharp({
-      create: { width: canvasSize, height: canvasSize, channels: 1, background: 255 }, // branco (gerar)
+      create: { width: canvasSize, height: canvasSize, channels: 3, background: { r: 255, g: 255, b: 255 } },
     })
       .composite([{ input: maskSmall, left: xOff, top: yOff, blend: 'over' }])
+      .grayscale()
       .png()
       .toBuffer()
 
@@ -248,8 +222,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           image: inputB64,
           mask: maskB64,
           prompt: config.promptFluxFill,
-          guidance: 30,
-          num_inference_steps: 50,
+          guidance: 15,
+          num_inference_steps: 40,
           output_format: 'jpg',
           output_quality: 92,
         },
@@ -325,6 +299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           fingerprint_original: hashOriginal,
           fingerprint_processado: hashResult,
           fingerprint_match: false,
+          hamming_distance: distance,
           aprovado: false,
           custo_estimado: 0.35,
           tempo_processamento_ms: tempoMs,
@@ -369,6 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         fingerprint_original: hashOriginal,
         fingerprint_processado: hashResult,
         fingerprint_match: true,
+        hamming_distance: distance,
         aprovado: true,
         custo_estimado: 0.35,
         tempo_processamento_ms: tempoMs,

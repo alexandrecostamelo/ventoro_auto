@@ -297,14 +297,13 @@ export default function GerenciarFotosModal({
                 )}
               </button>
 
-              {/* Link para VenStudio */}
-              <Link
-                to="/studio"
-                className={`flex-1 flex items-center justify-center gap-2 rounded-lg ${accentBg} text-primary-foreground px-4 py-2.5 text-small font-medium hover:brightness-90 transition-all`}
-                onClick={onClose}
+              {/* VenStudio pausado */}
+              <span
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-small font-medium text-text-muted cursor-not-allowed opacity-60"
+                title="VenStudio IA — Em Breve"
               >
-                <Wand2 className="w-4 h-4" /> Reprocessar com VenStudio IA
-              </Link>
+                <Wand2 className="w-4 h-4" /> VenStudio IA — Em Breve
+              </span>
             </div>
 
             <p className="text-micro text-text-muted mt-3">

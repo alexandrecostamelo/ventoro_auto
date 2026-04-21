@@ -57,16 +57,18 @@ Dados / Código:     JetBrains Mono (400)     — Google Fonts
 - **Repositório:** GitHub
 - **Deploy:** Vercel (via Lovable)
 
-### Backend (planejado — fase 2)
-- **BaaS:** Supabase (Postgres, Auth, Storage, Edge Functions, Realtime)
-- **Filas de IA:** BullMQ + Redis
-- **Pagamentos:** Stripe (assinaturas) + Pix via Asaas
-- **Storage de mídia:** Supabase Storage → Cloudflare R2 (escala)
+### Backend (ativo)
+- **BaaS:** Supabase (Postgres, Auth, Storage, RLS) — projeto `flhrbrnuwkpcdsnplibo`
+- **API:** Vercel Serverless Functions (api/venstudio/*.ts)
+- **Filas de IA:** Replicate async com webhook (VenStudio Tier C)
+- **Pagamentos:** Stripe (planejado) + Pix via Asaas (planejado)
+- **Storage de mídia:** Supabase Storage (buckets: fotos-veiculos, fotos-perfil, documentos, venstudio-processados)
 
-### IA (planejado)
-- **Texto:** Claude API (Anthropic) — copiloto, landing page, FAQ, análise
-- **Imagem:** Replicate API — remoção de fundo, ambientação (Stable Diffusion)
-- **Busca avançada:** Typesense ou Elasticsearch (fase 2)
+### IA (parcialmente ativo)
+- **Texto:** Claude API (Anthropic) — copiloto, landing page, FAQ, análise (planejado)
+- **Imagem:** Replicate API — VenStudio Tier C (Flux Fill Pro para inpainting premium) (ATIVO)
+- **Imagem:** Sharp (Node.js) — VenStudio Tier B (composição determinística) (ATIVO)
+- **Busca avançada:** Typesense ou Elasticsearch (planejado)
 
 ### Ferramentas de desenvolvimento
 - **AI coding:** Claude Code — lógica, integrações, Edge Functions, migrações
@@ -89,9 +91,10 @@ Dashboard, publicação de anúncio (wizard 7 etapas), gestão de anúncios, lea
 Requer autenticação. Perfil: `garagem`.
 Dashboard, gestão de estoque, pipeline CRM de leads (kanban), configuração da vitrine, equipe comercial, relatórios, planos e cobrança.
 
-### Camada 4 — Painel administrativo
-Requer autenticação. Perfil: `admin`.
-Usuários, anúncios (moderação), garagens, planos, pagamentos, métricas, parâmetros de IA, logs.
+### Camada 4 — Painel administrativo (IMPLEMENTADO)
+Requer autenticação. Perfil: `admin`. Guard duplo: useAdmin hook (frontend) + RLS policies (banco).
+7 páginas: Dashboard KPIs, Usuários CRUD, Garagens CRUD, Assinaturas, Financeiro, Logs auditoria, Configurações.
+Dados reais do Supabase. Migration 021 aplicada com RLS admin em todas as tabelas.
 
 ---
 
@@ -121,6 +124,17 @@ Usuários, anúncios (moderação), garagens, planos, pagamentos, métricas, par
 /painel/equipe             Equipe comercial
 /painel/relatorios         Relatórios
 /painel/planos             Planos e cobrança
+/studio                    VenStudio IA Tier B (standalone)
+/studio-pro                VenStudio Premium V2 Tier C (auth)
+/anunciar                  Wizard publicação de anúncio
+/inspecionar/:slug         Inspeção visual IA
+/admin                     Admin Dashboard (admin)
+/admin/usuarios            Gestão de usuários (admin)
+/admin/garagens            Gestão de garagens (admin)
+/admin/assinaturas         Assinaturas (admin)
+/admin/financeiro          Financeiro (admin)
+/admin/logs                Logs auditoria (admin)
+/admin/configuracoes       Configurações sistema (admin)
 ```
 
 ---
@@ -207,11 +221,12 @@ Cobrança por lead qualificado, parcerias com financiamento/seguro/vistoria, pub
 
 ---
 
-## Dados mockados — fase atual
+## Dados
 
-Todos os dados são estáticos. Nenhuma integração com banco de dados ativa.
+**Banco real:** Supabase Postgres com 21 migrações aplicadas. Auth real, RLS ativo.
+**Dados mock:** `src/data/mock.ts` ainda usado em telas públicas (busca, detalhe) enquanto não há dados reais suficientes.
 
-**Arquivo central:** `src/data/mock.ts`
+**Arquivo central de mock:** `src/data/mock.ts`
 
 Contém:
 - 12 veículos com todos os campos

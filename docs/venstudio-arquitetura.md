@@ -1,5 +1,37 @@
 # VenStudio — Arquitetura e Guardrails
 
+## Status: PAUSADO (abril 2026)
+
+Após múltiplas iterações de teste:
+- Tier B (Sharp + fundos curados): preservação 100% mas qualidade visual insuficiente (sombra, integração carro-ambiente)
+- Tier C (Flux Fill Pro): qualidade visual melhor mas inconsistente (fingerprint rejeita 40-100% das fotos dependendo dos parâmetros)
+
+Código preservado integralmente. Para retomar:
+1. Revisar alternativas (ControlNet Inpaint, Flair.ai API, Google Imagen com máscara)
+2. Calibrar sombra do Tier B (problema principal é integração visual, não preservação)
+3. Calibrar máscara do Tier C (dilatação e guidance)
+
+Decisão de retomada pendente do product owner.
+
+### Código preservado (não deletar)
+- `api/venstudio/compor-base.ts` (Tier B)
+- `api/venstudio/compor-premium-v2.ts` (Tier C)
+- `api/venstudio/webhook-replicate.ts`
+- `api/venstudio/job-status.ts`
+- `src/lib/venstudio-cenarios.ts`
+- `src/lib/venstudio-presets-v2.ts`
+- `src/lib/venstudio-types-v2.ts`
+- `src/hooks/useVenStudio.ts`
+- `src/hooks/useVenStudioPremium.ts`
+- `src/pages/VenStudioPremiumPage.tsx`
+- Bucket `fundos-cenarios/` (24 fundos curados)
+- Bucket `venstudio-processados/`
+- Tabela `processamentos_ia`
+- Migrações 010, 011, 020
+- `tests/venstudio-v2-*.html`, `tests/test-premium-v2.cjs`
+
+---
+
 ## REGRA DE OURO (non-negotiable)
 
 **A IA NUNCA toca no veiculo. Apenas no fundo.**

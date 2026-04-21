@@ -30,39 +30,39 @@ type CenarioId = (typeof CENARIOS_VALIDOS)[number]
 
 const CENARIO_CONFIG: Record<CenarioId, {
   yRatio: number
-  sombraAlpha: number
   ajustesVeiculo: { brightness: number; saturation: number; contrast: number; sharpen: number }
-  tintMatrix: number[][] | null  // 3x3 recomb matrix for color matching, null = no tint
+  tintMatrix: number[][] | null
+  sombra: { cor: string; opacidade: number; blur: number; blend: string }
 }> = {
   showroom_escuro: {
     yRatio: 0.92,
-    sombraAlpha: 0.8,
     ajustesVeiculo: { brightness: 1.05, saturation: 1.1, contrast: 1.08, sharpen: 0.8 },
-    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],
+    sombra: { cor: '#000000', opacidade: 0.65, blur: 50, blend: 'multiply' },
   },
   estudio_branco: {
     yRatio: 0.92,
-    sombraAlpha: 0.5,
     ajustesVeiculo: { brightness: 1.08, saturation: 1.05, contrast: 1.02, sharpen: 0.5 },
-    tintMatrix: null,  // sem tint
+    tintMatrix: null,
+    sombra: { cor: '#333333', opacidade: 0.35, blur: 40, blend: 'over' },
   },
   garagem_premium: {
     yRatio: 0.92,
-    sombraAlpha: 0.75,
     ajustesVeiculo: { brightness: 1.02, saturation: 1.08, contrast: 1.05, sharpen: 0.6 },
-    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],
+    sombra: { cor: '#1a0f00', opacidade: 0.55, blur: 50, blend: 'multiply' },
   },
   urbano_noturno: {
     yRatio: 0.92,
-    sombraAlpha: 0.8,
     ajustesVeiculo: { brightness: 0.95, saturation: 1.15, contrast: 1.1, sharpen: 0.7 },
-    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],
+    sombra: { cor: '#000000', opacidade: 0.7, blur: 45, blend: 'multiply' },
   },
   neutro_gradiente: {
     yRatio: 0.92,
-    sombraAlpha: 0.6,
     ajustesVeiculo: { brightness: 1.03, saturation: 1.02, contrast: 1.05, sharpen: 0.5 },
-    tintMatrix: [[0.98, 0, 0.02], [0, 0.98, 0.02], [0, 0, 1.02]],  // cool gray
+    tintMatrix: [[0.98, 0, 0.02], [0, 0.98, 0.02], [0, 0, 1.02]],
+    sombra: { cor: '#000000', opacidade: 0.45, blur: 55, blend: 'over' },
   },
 }
 
@@ -198,31 +198,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const veiculoFinal = await pipeline.png().toBuffer()
 
-    // ── [FIX 3] Sombra mais visível ──
-    const sombraH = Math.round(targetH * 0.25)  // era 0.15
-    const alphaChannel = await sharp(veiculoFinal)
-      .extractChannel(3)
-      .resize(targetW, sombraH)
-      .blur(60)  // era 40
-      .toBuffer()
+    // ── Sombra elíptica adaptativa por cenário ──
+    const { cor: sombraCor, opacidade: sombraOpacidade, blur: sombraBlur } = config.sombra
+    const ellipseW = Math.round(targetW * 0.82)
+    const ellipseH = Math.round(targetH * 0.14)
 
-    // Sombra preta semi-transparente
-    const sombra = await sharp({
-      create: {
-        width: targetW,
-        height: sombraH,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: Math.round(255 * config.sombraAlpha) },
-      },
-    })
-      .composite([{ input: alphaChannel, blend: 'dest-in' }])
+    const svgEllipse = Buffer.from(
+      `<svg width="${ellipseW}" height="${ellipseH}">` +
+      `<ellipse cx="${ellipseW / 2}" cy="${ellipseH / 2}" ` +
+      `rx="${Math.round(ellipseW * 0.46)}" ry="${Math.round(ellipseH * 0.42)}" ` +
+      `fill="${sombraCor}" fill-opacity="${sombraOpacidade}"/>` +
+      `</svg>`
+    )
+
+    const sombra = await sharp(svgEllipse)
+      .ensureAlpha()
+      .blur(Math.max(3, sombraBlur))
       .png()
       .toBuffer()
+
+    const sombraMeta = await sharp(sombra).metadata()
+    const sombraW = sombraMeta.width || ellipseW
+    const sombraH = sombraMeta.height || ellipseH
 
     // ── [FIX 2 + 7] Posição: y_ratio 0.92, offsetX com variação ±50px ──
     const xPos = Math.round((FUNDO_W - targetW) / 2 + (Math.random() * 100 - 50))
     const yVeiculo = Math.round(FUNDO_H * config.yRatio - targetH)  // bottom do carro no y_ratio
-    const ySombra = yVeiculo + targetH - 5
+    const xSombra = Math.round(xPos + (targetW - sombraW) / 2)
+    const ySombra = yVeiculo + targetH - Math.round(sombraH * 0.25)
 
     // ── Compor: fundo (upscale) + sombra (over) + veículo ──
     const resultado = await sharp(fundoBuffer)
@@ -230,9 +233,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .composite([
         {
           input: sombra,
-          left: Math.max(0, xPos),
+          left: Math.max(0, xSombra),
           top: Math.min(ySombra, FUNDO_H - sombraH),
-          blend: 'over',  // [FIX 3] era 'multiply' (invisível em fundos escuros)
+          blend: config.sombra.blend as 'over' | 'multiply',
         },
         {
           input: veiculoFinal,

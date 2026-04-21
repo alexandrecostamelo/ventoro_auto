@@ -12,7 +12,7 @@ const navItems = [
   { label: "Meus anúncios", icon: Megaphone, path: "/minha-conta/anuncios" },
   { label: "Leads", icon: Users, path: "/minha-conta/leads" },
   { label: "Métricas", icon: BarChart3, path: "/minha-conta/metricas" },
-  { label: "VenStudio IA", icon: Camera, path: "/studio" },
+  { label: "VenStudio IA", icon: Camera, path: "/studio", disabled: true },
   { label: "Alertas", icon: Bell, path: "/alertas" },
   { label: "Configurações", icon: Settings, path: "/minha-conta/configuracoes" },
 ];
@@ -61,21 +61,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-small font-medium transition-colors ${
-              isActive(item.path)
-                ? "bg-brand text-primary-foreground"
-                : "text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
-            }`}
-          >
-            <item.icon className="w-4 h-4 flex-shrink-0" />
-            {item.label}
-          </Link>
-        ))}
+        {navItems.map((item) =>
+          (item as { disabled?: boolean }).disabled ? (
+            <span
+              key={item.path}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-small font-medium text-text-muted cursor-not-allowed opacity-50"
+              title="Em Breve"
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0" />
+              {item.label}
+              <span className="ml-auto text-[10px] uppercase tracking-wider text-amber-500 font-semibold">Em Breve</span>
+            </span>
+          ) : (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-small font-medium transition-colors ${
+                isActive(item.path)
+                  ? "bg-brand text-primary-foreground"
+                  : "text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
+              }`}
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0" />
+              {item.label}
+            </Link>
+          )
+        )}
       </nav>
 
       <div className="p-4 border-t border-border">

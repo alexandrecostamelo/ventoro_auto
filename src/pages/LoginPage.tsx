@@ -28,6 +28,20 @@ export default function LoginPage() {
       setErro("Email ou senha incorretos.");
       return;
     }
+    // Verificar tipo do perfil para redirecionar corretamente
+    const { supabase } = await import("@/lib/supabase");
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("tipo")
+        .eq("id", currentUser.id)
+        .single();
+      if (prof?.tipo === "admin") {
+        navigate("/admin/dashboard");
+        return;
+      }
+    }
     navigate("/minha-conta");
   }
 

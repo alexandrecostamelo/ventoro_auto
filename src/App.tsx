@@ -15,6 +15,7 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import ComparePage from "./pages/ComparePage";
 import PublishAdPage from "./pages/PublishAdPage";
 import VenStudioPage from "./pages/VenStudioPage";
+import VenStudioPremiumPage from "./pages/VenStudioPremiumPage";
 import InspecaoPage from "./pages/InspecaoPage";
 import AlertsPage from "./pages/AlertsPage";
 import FavoritesPage from "./pages/FavoritesPage";
@@ -34,6 +35,15 @@ import GarageTeam from "./pages/garage/GarageTeam";
 import GarageReports from "./pages/garage/GarageReports";
 import GaragePlans from "./pages/garage/GaragePlans";
 import GarageMarketing from "./pages/garage/GarageMarketing";
+import AdminLoginPage from "./pages/admin/AdminLoginPage";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsuarios from "./pages/admin/AdminUsuarios";
+import AdminGaragens from "./pages/admin/AdminGaragens";
+import AdminAssinaturas from "./pages/admin/AdminAssinaturas";
+import AdminFinanceiro from "./pages/admin/AdminFinanceiro";
+import AdminLogs from "./pages/admin/AdminLogs";
+import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
 
 const queryClient = new QueryClient();
 
@@ -72,7 +82,18 @@ const App = () => (
             <Route path="/painel/relatorios" element={<GarageDashboardLayout><GarageReports /></GarageDashboardLayout>} />
             <Route path="/painel/planos" element={<GarageDashboardLayout><GaragePlans /></GarageDashboardLayout>} />
 
+            {/* Admin */}
+            <Route path="/admin" element={<AdminLoginPage />} />
+            <Route path="/admin/dashboard" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
+            <Route path="/admin/usuarios" element={<AdminLayout><AdminUsuarios /></AdminLayout>} />
+            <Route path="/admin/garagens" element={<AdminLayout><AdminGaragens /></AdminLayout>} />
+            <Route path="/admin/assinaturas" element={<AdminLayout><AdminAssinaturas /></AdminLayout>} />
+            <Route path="/admin/financeiro" element={<AdminLayout><AdminFinanceiro /></AdminLayout>} />
+            <Route path="/admin/logs" element={<AdminLayout><AdminLogs /></AdminLayout>} />
+            <Route path="/admin/configuracoes" element={<AdminLayout><AdminConfiguracoes /></AdminLayout>} />
+
             <Route path="/studio" element={<VenStudioPage />} />
+            <Route path="/studio-pro" element={<VenStudioPremiumPage />} />
             <Route path="/inspecionar/:slug" element={<InspecaoPage />} />
             <Route path="/alertas" element={<AlertsPage />} />
             <Route path="/favoritos" element={<FavoritesPage />} />
