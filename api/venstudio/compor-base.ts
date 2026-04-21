@@ -1,10 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import sharp from 'sharp'
-import {
-  getServiceClient, verifyUser, fundoAleatorioUrl,
-  CENARIOS_VALIDOS, CENARIO_CONFIG, corsHeaders,
-  type CenarioId,
-} from '../../lib/venstudio-api'
+import { createClient } from '@supabase/supabase-js'
+
+// ── Shared (inlined — Vercel bundles each function independently) ──
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
+
+function getServiceClient() { return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) }
+async function verifyUser(authHeader: string | null) {
+  if (!authHeader) return null
+  const c = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } })
+  const { data: { user }, error } = await c.auth.getUser()
+  return error || !user ? null : user
+}
+
+const VARIACOES: Record<string, number[]> = {
+  showroom_escuro: [1, 3, 4, 5], estudio_branco: [1, 2, 3, 4, 5],
+  garagem_premium: [1, 2, 3, 4, 5], urbano_noturno: [1, 2, 3, 4, 5], neutro_gradiente: [1, 2, 3, 4, 5],
+}
+function fundoAleatorioUrl(cenarioId: string): string {
+  const d = VARIACOES[cenarioId] || [1, 2, 3, 4, 5]
+  const v = d[Math.floor(Math.random() * d.length)]
+  return `${SUPABASE_URL}/storage/v1/object/public/fundos-cenarios/${cenarioId}/${String(v).padStart(2, '0')}.jpg`
+}
+
+const CENARIOS_VALIDOS = ['showroom_escuro', 'estudio_branco', 'garagem_premium', 'urbano_noturno', 'neutro_gradiente'] as const
+type CenarioId = (typeof CENARIOS_VALIDOS)[number]
+const CENARIO_CONFIG: Record<CenarioId, { intensidadeSombra: number; yRatio: number; escalaVeiculo: number; ajustesVeiculo: { brightness: number; saturation: number; contrast: number; sharpen: number } }> = {
+  showroom_escuro: { intensidadeSombra: 0.7, yRatio: 0.62, escalaVeiculo: 0.65, ajustesVeiculo: { brightness: 1.05, saturation: 1.1, contrast: 1.08, sharpen: 0.8 } },
+  estudio_branco: { intensidadeSombra: 0.25, yRatio: 0.65, escalaVeiculo: 0.6, ajustesVeiculo: { brightness: 1.08, saturation: 1.05, contrast: 1.02, sharpen: 0.5 } },
+  garagem_premium: { intensidadeSombra: 0.5, yRatio: 0.63, escalaVeiculo: 0.62, ajustesVeiculo: { brightness: 1.02, saturation: 1.08, contrast: 1.05, sharpen: 0.6 } },
+  urbano_noturno: { intensidadeSombra: 0.6, yRatio: 0.60, escalaVeiculo: 0.58, ajustesVeiculo: { brightness: 0.95, saturation: 1.15, contrast: 1.1, sharpen: 0.7 } },
+  neutro_gradiente: { intensidadeSombra: 0.35, yRatio: 0.64, escalaVeiculo: 0.6, ajustesVeiculo: { brightness: 1.03, saturation: 1.02, contrast: 1.05, sharpen: 0.5 } },
+}
+const ALLOWED_ORIGINS = new Set(['https://ventoro.com.br', 'https://www.ventoro.com.br', 'http://localhost:5173', 'http://localhost:8080', 'https://ventoro-auto.vercel.app'])
+function corsHeaders(origin: string | null) {
+  const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://ventoro.com.br'
+  return { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+}
 
 // ============================================================
 // VenStudio V2 — Tier B: Composição determinística com Sharp

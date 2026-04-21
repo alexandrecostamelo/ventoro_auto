@@ -1,11 +1,35 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import sharp from 'sharp'
 import phash from 'sharp-phash'
-import {
-  getServiceClient, verifyUser,
-  CENARIOS_VALIDOS, CENARIO_CONFIG, corsHeaders,
-  type CenarioId,
-} from '../../lib/venstudio-api'
+import { createClient } from '@supabase/supabase-js'
+
+// ── Shared (inlined — Vercel bundles each function independently) ──
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
+
+function getServiceClient() { return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) }
+async function verifyUser(authHeader: string | null) {
+  if (!authHeader) return null
+  const c = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } })
+  const { data: { user }, error } = await c.auth.getUser()
+  return error || !user ? null : user
+}
+
+const CENARIOS_VALIDOS = ['showroom_escuro', 'estudio_branco', 'garagem_premium', 'urbano_noturno', 'neutro_gradiente'] as const
+type CenarioId = (typeof CENARIOS_VALIDOS)[number]
+const CENARIO_CONFIG: Record<CenarioId, { promptFluxFill: string }> = {
+  showroom_escuro: { promptFluxFill: 'Premium dark car showroom, polished black reflective marble floor, dramatic LED side lighting, dark charcoal walls, professional automotive photography, photorealistic' },
+  estudio_branco: { promptFluxFill: 'Professional white photography studio, infinite white cyclorama, soft diffused overhead lighting, clean seamless floor, commercial product photography, photorealistic' },
+  garagem_premium: { promptFluxFill: 'Industrial loft garage, textured polished concrete floor, warm amber focused lighting, exposed brick and metal elements, moody atmospheric automotive workshop, photorealistic' },
+  urbano_noturno: { promptFluxFill: 'Modern city street at night, wet asphalt reflecting neon lights, cyberpunk atmosphere, defocused building lights, cinematic automotive photography, photorealistic' },
+  neutro_gradiente: { promptFluxFill: 'Professional gradient background, smooth transition charcoal gray to deep black, subtle radial lighting, minimalist automotive advertising background, photorealistic' },
+}
+const ALLOWED_ORIGINS = new Set(['https://ventoro.com.br', 'https://www.ventoro.com.br', 'http://localhost:5173', 'http://localhost:8080', 'https://ventoro-auto.vercel.app'])
+function corsHeaders(origin: string | null) {
+  const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://ventoro.com.br'
+  return { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+}
 
 // ============================================================
 // VenStudio V2 — Tier C: Composição premium com Flux Fill Pro
