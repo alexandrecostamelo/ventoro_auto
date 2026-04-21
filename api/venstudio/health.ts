@@ -4,24 +4,17 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const checks: Record<string, string> = {}
 
   try {
+    const shared = await import('./_shared')
+    checks._shared = 'ok: exports=' + Object.keys(shared).join(',')
+  } catch (e) {
+    checks._shared = 'FAIL: ' + (e instanceof Error ? e.message + '\n' + e.stack : String(e))
+  }
+
+  try {
     const sharp = await import('sharp')
     checks.sharp = 'ok: ' + typeof sharp.default
   } catch (e) {
     checks.sharp = 'FAIL: ' + (e instanceof Error ? e.message : String(e))
-  }
-
-  try {
-    const phash = await import('sharp-phash')
-    checks.sharp_phash = 'ok: ' + typeof phash.default
-  } catch (e) {
-    checks.sharp_phash = 'FAIL: ' + (e instanceof Error ? e.message : String(e))
-  }
-
-  try {
-    const { createClient } = await import('@supabase/supabase-js')
-    checks.supabase = 'ok: ' + typeof createClient
-  } catch (e) {
-    checks.supabase = 'FAIL: ' + (e instanceof Error ? e.message : String(e))
   }
 
   checks.env_supabase_url = process.env.SUPABASE_URL ? 'set' : (process.env.VITE_SUPABASE_URL ? 'VITE set' : 'MISSING')
