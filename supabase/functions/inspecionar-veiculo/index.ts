@@ -50,7 +50,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://localhost:8080',
   // TODO: substituir pelo domínio real após deploy Vercel
-  'https://ventoro.vercel.app',
+  'https://ventoro-auto.vercel.app',
 ])
 
 function corsHeaders(origin: string | null) {

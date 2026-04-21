@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wand2, X, ChevronRight, CheckCircle2, Sparkles,
-  RotateCcw, Image as ImageIcon,
-  GripVertical, AlertTriangle, Car, ChevronLeft,
-  Save, Trash2, ExternalLink, Loader2,
+  RotateCcw, Image as ImageIcon, AlertTriangle, Car, ChevronLeft,
+  Save, Trash2, ExternalLink, Loader2, Crown, ShieldCheck,
+  GripVertical, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVeiculosAnunciante, fotoCapa, type VeiculoAnunciante } from "@/hooks/useVeiculosAnunciante";
-import { useVenStudio, CENARIOS_VENSTUDIO, type CenarioId, type FotoProcessamento } from "@/hooks/useVenStudio";
+import { useVenStudio, CENARIOS_VENSTUDIO, type CenarioId, type FotoProcessamento, type Tier } from "@/hooks/useVenStudio";
+import { CENARIOS, fundoUrl, VARIACOES } from "@/lib/venstudio-cenarios";
 import { supabase } from "@/lib/supabase";
 
 type Phase = "select" | "scenario" | "processing" | "result";
@@ -39,15 +40,11 @@ export default function VenStudioPage() {
   const [selectedVeiculo, setSelectedVeiculo] = useState<VeiculoAnunciante | null>(null);
   const [fotosVeiculo, setFotosVeiculo] = useState<FotoVeiculo[]>([]);
   const [loadingFotos, setLoadingFotos] = useState(false);
+  const [confirmou, setConfirmou] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/entrar");
   }, [user, authLoading, navigate]);
-
-  // Carregar uso ao montar
-  useEffect(() => {
-    if (user) venStudio.carregarUso();
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectVeiculo = async (v: VeiculoAnunciante) => {
     setSelectedVeiculo(v);
@@ -62,7 +59,6 @@ export default function VenStudioPage() {
     const fotos = (data ?? []) as FotoVeiculo[];
     setFotosVeiculo(fotos);
 
-    // Preparar fotos para o hook
     venStudio.setFotos(
       fotos.map((f) => ({
         fotoUrl: f.url_original,
@@ -81,11 +77,10 @@ export default function VenStudioPage() {
     venStudio.processarTodas(selectedVeiculo.id);
   };
 
-  // Detectar quando todas as fotos terminaram
   useEffect(() => {
     if (phase !== "processing") return;
     const allDone = venStudio.fotos.length > 0 && venStudio.fotos.every(
-      (f) => f.status === "concluido" || f.status === "erro"
+      (f) => f.status === "concluido" || f.status === "erro" || f.status === "rejeitado"
     );
     if (allDone) {
       setTimeout(() => setPhase("result"), 600);
@@ -97,17 +92,10 @@ export default function VenStudioPage() {
     setSelectedVeiculo(null);
     setFotosVeiculo([]);
     venStudio.setFotos([]);
+    setConfirmou(false);
   };
 
   if (authLoading) return null;
-
-  // ══════════════════════════════════════════════════════════════════
-  // VENSTUDIO DESABILITADO — RISCO LEGAL (CDC Art. 37)
-  // Pipeline generativo altera características do veículo (emblema,
-  // rodas, faróis, placa). Reabilitar somente após pipeline
-  // determinístico (segmentação + composição Sharp) com fingerprint.
-  // Ver docs/venstudio-arquitetura.md
-  // ══════════════════════════════════════════════════════════════════
 
   return (
     <div className="min-h-screen bg-background">
@@ -121,35 +109,57 @@ export default function VenStudioPage() {
           <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-display)]">
             Transforme suas fotos em imagens profissionais
           </h1>
+          <p className="text-muted-foreground mt-2 max-w-lg mx-auto text-sm">
+            Seu veículo é preservado pixel a pixel — a IA altera apenas o fundo.
+          </p>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-16">
-        <Card className="border-warning bg-warning/5">
-          <CardContent className="p-8 text-center">
-            <AlertTriangle className="h-12 w-12 text-warning mx-auto mb-4" />
-            <h2 className="text-xl font-bold font-[family-name:var(--font-display)] mb-2">
-              VenStudio em manutenção técnica
-            </h2>
-            <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              Estamos aprimorando nosso processamento de imagens para garantir
-              fidelidade total ao seu veículo. Seus anúncios continuam ativos
-              com as fotos originais.
-            </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              Voltaremos em breve com processamento que preserva seu veículo
-              pixel a pixel — apenas o fundo é alterado.
-            </p>
-            <div className="flex justify-center gap-3">
-              <Button variant="outline" onClick={() => navigate(-1)}>
-                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-              </Button>
-              <Button onClick={() => navigate("/minha-conta/anuncios")}>
-                Meus anúncios
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="max-w-3xl mx-auto px-4 py-10">
+        <AnimatePresence mode="wait">
+          {phase === "select" && (
+            <SelectPhase
+              key="select"
+              veiculos={veiculos}
+              loading={veiculosLoading}
+              onSelect={handleSelectVeiculo}
+            />
+          )}
+          {phase === "scenario" && selectedVeiculo && (
+            <ScenarioPhase
+              key="scenario"
+              veiculo={selectedVeiculo}
+              fotos={fotosVeiculo}
+              cenario={venStudio.cenario}
+              tier={venStudio.tier}
+              onCenarioChange={venStudio.setCenario}
+              onTierChange={venStudio.setTier}
+              confirmou={confirmou}
+              onConfirmouChange={setConfirmou}
+              onBack={reset}
+              onProcess={startProcessing}
+            />
+          )}
+          {phase === "processing" && (
+            <ProcessingPhase
+              key="processing"
+              fotos={venStudio.fotos}
+              progresso={venStudio.progresso}
+              cenario={venStudio.cenario}
+            />
+          )}
+          {phase === "result" && selectedVeiculo && (
+            <ResultPhase
+              key="result"
+              fotos={venStudio.fotos}
+              fotosOriginais={fotosVeiculo}
+              cenarioId={venStudio.cenario}
+              veiculo={selectedVeiculo}
+              onReset={reset}
+              onReverter={(i) => venStudio.reverterFoto(i)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -165,7 +175,7 @@ function SelectPhase({ veiculos, loading, onSelect }: {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
       <div>
         <h2 className="text-xl font-bold font-[family-name:var(--font-display)] mb-1">Escolha um veículo</h2>
-        <p className="text-sm text-muted-foreground">Selecione o veículo cujas fotos você deseja processar com IA</p>
+        <p className="text-sm text-muted-foreground">Selecione o veículo cujas fotos você deseja processar</p>
       </div>
 
       {loading ? (
@@ -191,20 +201,11 @@ function SelectPhase({ veiculos, loading, onSelect }: {
               className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30"
             >
               <CardContent className="p-4 flex items-center gap-4">
-                <img
-                  src={fotoCapa(v)}
-                  alt={v.modelo}
-                  className="w-24 h-16 object-cover rounded-lg flex-shrink-0"
-                />
+                <img src={fotoCapa(v)} alt={v.modelo} className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold truncate">{v.marca} {v.modelo} {v.versao}</p>
                   <p className="text-sm text-muted-foreground">{v.ano} · {v.fotos_veiculo.length} fotos</p>
                 </div>
-                {v.selo_studio_ia && (
-                  <Badge className="bg-primary/10 text-primary text-xs flex-shrink-0">
-                    <Wand2 className="h-3 w-3 mr-1" /> Processado
-                  </Badge>
-                )}
                 <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
               </CardContent>
             </Card>
@@ -216,20 +217,20 @@ function SelectPhase({ veiculos, loading, onSelect }: {
 }
 
 /* ──── Scenario Phase ──── */
-function ScenarioPhase({ veiculo, fotos, cenario, melhorarQualidade, onCenarioChange, onMelhorarQualidadeChange, limiteAtingido, onBack, onProcess }: {
+function ScenarioPhase({ veiculo, fotos, cenario, tier, onCenarioChange, onTierChange, confirmou, onConfirmouChange, onBack, onProcess }: {
   veiculo: VeiculoAnunciante;
   fotos: FotoVeiculo[];
   cenario: CenarioId;
-  melhorarQualidade: boolean;
+  tier: Tier;
   onCenarioChange: (c: CenarioId) => void;
-  onMelhorarQualidadeChange: (v: boolean) => void;
-  limiteAtingido: boolean;
+  onTierChange: (t: Tier) => void;
+  confirmou: boolean;
+  onConfirmouChange: (v: boolean) => void;
   onBack: () => void;
   onProcess: () => void;
 }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-      {/* Vehicle info */}
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
@@ -238,95 +239,92 @@ function ScenarioPhase({ veiculo, fotos, cenario, melhorarQualidade, onCenarioCh
           <h2 className="text-xl font-bold font-[family-name:var(--font-display)]">
             {veiculo.marca} {veiculo.modelo} {veiculo.versao}
           </h2>
-          <p className="text-sm text-muted-foreground">{fotos.length} fotos disponíveis</p>
+          <p className="text-sm text-muted-foreground">{fotos.length} fotos</p>
         </div>
       </div>
+
+      {/* Garantia */}
+      <Card className="border-green-500/30 bg-green-500/5">
+        <CardContent className="p-3 flex items-center gap-3">
+          <ShieldCheck className="h-5 w-5 text-green-600 flex-shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-green-700 dark:text-green-400">Veículo preservado pixel a pixel.</span> Apenas o fundo é alterado.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Fotos preview */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {fotos.map((f, i) => (
-          <div key={f.id} className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border border-border relative">
+          <div key={f.id} className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border border-border">
             <img src={f.url_original} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
-            {f.processada_por_ia && (
-              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-              </div>
-            )}
           </div>
         ))}
       </div>
 
       {/* Cenários */}
       <div>
-        <h3 className="text-base font-semibold mb-3">Escolha o Cenário</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {CENARIOS_VENSTUDIO.map((s) => (
-            <Card
-              key={s.id}
-              onClick={() => onCenarioChange(s.id)}
-              className={`cursor-pointer transition-all hover:shadow-lg ${
-                cenario === s.id ? "ring-2 ring-primary shadow-lg" : ""
-              }`}
-            >
-              <CardContent className="p-0">
-                <div className={`h-28 bg-gradient-to-br ${s.gradient} rounded-t-lg flex items-center justify-center`}>
-                  <ImageIcon className="h-10 w-10 text-white/80" />
+        <h3 className="text-base font-semibold mb-3">Cenário</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {CENARIOS_VENSTUDIO.map((s) => {
+            const cfg = CENARIOS[s.id as CenarioId];
+            const thumb = fundoUrl(s.id as CenarioId, VARIACOES[s.id as CenarioId][0]);
+            return (
+              <Card
+                key={s.id}
+                onClick={() => onCenarioChange(s.id as CenarioId)}
+                className={`cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
+                  cenario === s.id ? "ring-2 ring-primary shadow-lg" : ""
+                }`}
+              >
+                <div className="h-20 overflow-hidden">
+                  <img src={thumb} alt={cfg.nome} className="w-full h-full object-cover" />
                 </div>
-                <div className="p-3">
-                  <p className="font-semibold text-sm">{s.nome}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{s.desc}</p>
+                <CardContent className="p-3">
+                  <p className="font-semibold text-sm">{cfg.nome}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{cfg.desc}</p>
                   {cenario === s.id && (
                     <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">
                       <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
                     </Badge>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
-      {/* Quality toggle */}
+      {/* Tier toggle */}
       <Card>
         <CardContent className="p-4 flex items-center justify-between">
           <div>
             <p className="font-semibold text-sm flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" /> Melhorar qualidade (HD)
+              <Crown className="h-4 w-4 text-trust-medium" /> Qualidade Premium (IA Avançada)
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Brilho, contraste e nitidez otimizados</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Fundo gerado por IA. Exclusivo Premium.</p>
           </div>
-          <Switch checked={melhorarQualidade} onCheckedChange={onMelhorarQualidadeChange} />
+          <Switch checked={tier === 'C'} onCheckedChange={(v) => onTierChange(v ? 'C' : 'B')} />
         </CardContent>
       </Card>
 
-      {/* Limite warning */}
-      {limiteAtingido && (
-        <Card className="border-warning bg-warning/5">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
-            <p className="text-sm">Limite diário de 20 processamentos atingido. Tente novamente amanhã.</p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Checkbox legal */}
+      <label className="flex items-start gap-3 p-4 rounded-xl border border-border bg-muted/30 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={confirmou}
+          onChange={(e) => onConfirmouChange(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-border accent-primary"
+        />
+        <span className="text-sm text-muted-foreground">
+          Confirmo que as fotos processadas representam fielmente o veículo real.
+        </span>
+      </label>
 
       {/* Process button */}
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="p-5 flex items-center justify-between">
-          <div>
-            <p className="font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Processar {fotos.length} foto(s)
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Cenário: {CENARIOS_VENSTUDIO.find((c) => c.id === cenario)?.nome} · As fotos originais são preservadas
-            </p>
-          </div>
-          <Button onClick={onProcess} disabled={limiteAtingido || fotos.length === 0} className="bg-primary hover:bg-primary/90">
-            <Wand2 className="h-4 w-4 mr-2" /> Processar com IA
-          </Button>
-        </CardContent>
-      </Card>
+      <Button onClick={onProcess} disabled={!confirmou || fotos.length === 0} className="w-full bg-primary hover:bg-primary/90">
+        <Wand2 className="h-4 w-4 mr-2" /> Processar {fotos.length} foto(s) — Tier {tier}
+      </Button>
     </motion.div>
   );
 }
@@ -338,11 +336,9 @@ function ProcessingPhase({ fotos, progresso, cenario }: {
   cenario: string;
 }) {
   const total = fotos.length;
-  const done = fotos.filter((f) => f.status === "concluido" || f.status === "erro").length;
-  const currentIndex = fotos.findIndex((f) => f.status === "processando");
-
-  const steps = ["Baixando imagem...", "Removendo fundo...", "Aplicando cenário...", "Finalizando..."];
-  const stepIdx = Math.min(Math.floor((progresso / 100) * steps.length), steps.length - 1);
+  const done = fotos.filter((f) => f.status === "concluido" || f.status === "erro" || f.status === "rejeitado").length;
+  const current = fotos.find((f) => f.status === "segmentando" || f.status === "compondo");
+  const stepLabel = current?.status === "segmentando" ? "Removendo fundo..." : current?.status === "compondo" ? "Compondo cenário..." : "Finalizando...";
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-lg mx-auto text-center py-16 space-y-8">
@@ -355,17 +351,17 @@ function ProcessingPhase({ fotos, progresso, cenario }: {
       </motion.div>
 
       <div>
-        <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">VenStudio IA processando</h2>
+        <h2 className="text-2xl font-bold font-[family-name:var(--font-display)]">VenStudio processando</h2>
         <p className="text-muted-foreground mt-1">
-          Cenário: <span className="font-medium text-foreground">{cenario}</span>
+          Cenário: <span className="font-medium text-foreground">{CENARIOS[cenario as CenarioId]?.nome || cenario}</span>
         </p>
       </div>
 
       <div className="space-y-2">
         <Progress value={progresso} className="h-3" />
         <div className="flex justify-between text-sm text-muted-foreground">
-          <span>{currentIndex >= 0 ? `Foto ${currentIndex + 1}: ${steps[stepIdx]}` : steps[stepIdx]}</span>
-          <span>{done}/{total} fotos</span>
+          <span>{stepLabel}</span>
+          <span>{done}/{total}</span>
         </div>
       </div>
 
@@ -376,7 +372,8 @@ function ProcessingPhase({ fotos, progresso, cenario }: {
             className={`w-3 h-3 rounded-full transition-all ${
               f.status === "concluido" ? "bg-primary scale-100"
                 : f.status === "erro" ? "bg-destructive scale-100"
-                : f.status === "processando" ? "bg-primary/50 scale-110 animate-pulse"
+                : f.status === "rejeitado" ? "bg-amber-500 scale-100"
+                : f.status === "segmentando" || f.status === "compondo" ? "bg-primary/50 scale-110 animate-pulse"
                 : "bg-muted scale-75"
             }`}
           />
@@ -387,10 +384,10 @@ function ProcessingPhase({ fotos, progresso, cenario }: {
 }
 
 /* ──── Result Phase ──── */
-function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onReverter }: {
+function ResultPhase({ fotos, fotosOriginais, cenarioId, veiculo, onReset, onReverter }: {
   fotos: FotoProcessamento[];
   fotosOriginais: FotoVeiculo[];
-  cenario: typeof CENARIOS_VENSTUDIO[number];
+  cenarioId: CenarioId;
   veiculo: VeiculoAnunciante;
   onReset: () => void;
   onReverter: (i: number) => void;
@@ -398,18 +395,18 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
   const navigate = useNavigate();
   const [activePhoto, setActivePhoto] = useState(0);
   const [deletando, setDeletando] = useState<number | null>(null);
-  const [salvoMsg, setSalvoMsg] = useState(false);
+
   const fotosOk = fotos.filter((f) => f.status === "concluido").length;
   const fotosErro = fotos.filter((f) => f.status === "erro").length;
-
+  const fotosRejeitadas = fotos.filter((f) => f.status === "rejeitado").length;
   const activeFoto = fotos[activePhoto];
   const activeOriginal = fotosOriginais[activePhoto];
+  const cenarioConfig = CENARIOS[cenarioId];
 
   async function handleDeleteProcessada(idx: number) {
     const foto = fotosOriginais[idx];
     if (!foto) return;
     setDeletando(idx);
-    // Reverter para a original no banco
     await supabase
       .from("fotos_veiculo")
       .update({ url_processada: null, processada_por_ia: false, cenario_ia: null })
@@ -418,42 +415,27 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
     setDeletando(null);
   }
 
-  function handleSalvar() {
-    // As fotos já foram salvas automaticamente pela Edge Function
-    // Mostrar feedback visual
-    setSalvoMsg(true);
-    setTimeout(() => setSalvoMsg(false), 3000);
-  }
-
-  function handleVoltar() {
-    navigate(`/veiculo/${veiculo.slug}`);
-  }
-
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-primary" /> Processamento Concluído!
+            <CheckCircle2 className="h-5 w-5 text-primary" /> Processamento Concluído
           </h2>
           <p className="text-sm text-muted-foreground">
-            {fotosOk} foto(s) processadas com {cenario.nome}
-            {fotosErro > 0 && ` · ${fotosErro} com erro`}
+            {fotosOk} processada(s) com {cenarioConfig.nome}
+            {fotosErro > 0 && ` · ${fotosErro} erro(s)`}
+            {fotosRejeitadas > 0 && ` · ${fotosRejeitadas} rejeitada(s) (integridade)`}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={onReset}>
-            <RotateCcw className="h-4 w-4 mr-1" /> Processar outro
-          </Button>
-        </div>
+        <Button variant="outline" onClick={onReset}>
+          <RotateCcw className="h-4 w-4 mr-1" /> Processar outro
+        </Button>
       </div>
 
-      {/* Before/After Slider */}
+      {/* Before/After */}
       {activeFoto?.urlProcessada && activeOriginal && (
-        <BeforeAfterSlider
-          before={activeOriginal.url_original}
-          after={activeFoto.urlProcessada}
-        />
+        <BeforeAfterSlider before={activeOriginal.url_original} after={activeFoto.urlProcessada} />
       )}
 
       {activeFoto?.status === "erro" && (
@@ -461,14 +443,26 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
           <CardContent className="p-4 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium">Erro ao processar esta foto</p>
+              <p className="text-sm font-medium">Erro ao processar</p>
               <p className="text-xs text-muted-foreground">{activeFoto.erro}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Action buttons for active photo */}
+      {activeFoto?.status === "rejeitado" && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Integridade não aprovada</p>
+              <p className="text-xs text-muted-foreground">{activeFoto.erro} A foto original foi mantida.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Actions */}
       {activeFoto?.status === "concluido" && activeFoto.urlProcessada && (
         <div className="flex gap-2">
           <Button
@@ -477,12 +471,8 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
             disabled={deletando === activePhoto}
             onClick={() => handleDeleteProcessada(activePhoto)}
           >
-            {deletando === activePhoto ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4 mr-1" />
-            )}
-            Descartar esta foto processada
+            {deletando === activePhoto ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+            Descartar processada
           </Button>
         </div>
       )}
@@ -507,6 +497,11 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
                 <CheckCircle2 className="h-2.5 w-2.5 text-primary-foreground" />
               </div>
             )}
+            {foto.status === "rejeitado" && (
+              <div className="absolute bottom-0 right-0 bg-amber-500 rounded-tl p-0.5">
+                <ShieldCheck className="h-2.5 w-2.5 text-white" />
+              </div>
+            )}
             {foto.status === "erro" && (
               <div className="absolute bottom-0 right-0 bg-destructive rounded-tl p-0.5">
                 <X className="h-2.5 w-2.5 text-destructive-foreground" />
@@ -516,46 +511,21 @@ function ResultPhase({ fotos, fotosOriginais, cenario, veiculo, onReset, onRever
         ))}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Processadas", value: `${fotosOk}/${fotos.length}` },
-          { label: "Cenário", value: cenario.nome },
-          { label: "Tempo médio", value: (() => {
-            const tempos = fotos.filter(f => f.tempoMs).map(f => f.tempoMs!);
-            return tempos.length > 0 ? `${(tempos.reduce((a, b) => a + b, 0) / tempos.length / 1000).toFixed(1)}s` : "-";
-          })() },
-          { label: "Erros", value: fotosErro.toString() },
-        ].map((stat) => (
-          <Card key={stat.label} className="bg-primary/5">
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
-              <p className="font-bold text-primary font-[family-name:var(--font-mono)]">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Bottom actions — Salvar e Voltar */}
+      {/* Bottom actions */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <p className="font-semibold flex items-center gap-2">
               <Save className="h-4 w-4 text-primary" />
-              {salvoMsg ? "Fotos salvas no anúncio!" : "As fotos processadas já foram salvas automaticamente no seu anúncio."}
+              Fotos salvas automaticamente no anúncio
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {veiculo.marca} {veiculo.modelo} {veiculo.versao} — {fotosOk} foto(s) atualizadas
+              {veiculo.marca} {veiculo.modelo} — {fotosOk} foto(s) atualizadas
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleVoltar}>
-              <ExternalLink className="h-4 w-4 mr-1" /> Ver anúncio
-            </Button>
-            <Button onClick={handleSalvar} className="bg-primary hover:bg-primary/90">
-              <Save className="h-4 w-4 mr-1" /> {salvoMsg ? "Salvo!" : "Confirmar"}
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => navigate(`/veiculo/${veiculo.slug}`)}>
+            <ExternalLink className="h-4 w-4 mr-1" /> Ver anúncio
+          </Button>
         </CardContent>
       </Card>
     </motion.div>
@@ -572,51 +542,34 @@ function BeforeAfterSlider({ before, after }: { before: string; after: string })
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
-    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    setSliderPos(pct);
+    setSliderPos(Math.max(0, Math.min(100, (x / rect.width) * 100)));
   }, []);
-
-  const handleMouseDown = () => { isDragging.current = true; };
-  const handleMouseUp = () => { isDragging.current = false; };
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging.current) updatePosition(e.clientX);
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    updatePosition(e.touches[0].clientX);
-  };
 
   return (
     <div
       ref={containerRef}
       className="relative rounded-2xl overflow-hidden aspect-[16/9] cursor-col-resize select-none"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchMove={handleTouchMove}
+      onMouseMove={(e) => { if (isDragging.current) updatePosition(e.clientX); }}
+      onMouseUp={() => { isDragging.current = false; }}
+      onMouseLeave={() => { isDragging.current = false; }}
+      onTouchMove={(e) => updatePosition(e.touches[0].clientX)}
     >
-      {/* "After" — full background */}
       <div className="absolute inset-0">
         <img src={after} alt="Depois" className="w-full h-full object-cover" />
       </div>
-
-      {/* "Before" — clipped */}
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
         <img src={before} alt="Antes" className="w-full h-full object-cover" />
       </div>
-
-      {/* Slider handle */}
       <div
         className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-col-resize z-10"
         style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleMouseDown}
+        onMouseDown={() => { isDragging.current = true; }}
+        onTouchStart={() => { isDragging.current = true; }}
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white rounded-full shadow-xl flex items-center justify-center">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
-
-      {/* Labels */}
       <Badge className="absolute top-3 left-3 bg-black/60 text-white border-0">Antes</Badge>
       <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground border-0">
         <Sparkles className="h-3 w-3 mr-1" /> Depois

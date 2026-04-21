@@ -1,154 +1,168 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { CENARIOS_LIST, type CenarioId } from '@/lib/venstudio-cenarios'
+
+// Re-export for backward compat
+export { CENARIOS_LIST as CENARIOS_VENSTUDIO }
+export type { CenarioId }
 
 // ============================================================
-// Cenários disponíveis para processamento VenStudio IA
+// VenStudio V2 — Hook de processamento
+// Orquestra: segmentação (Edge Function) → composição (Vercel API)
+// Tier B = Sharp determinístico | Tier C = Flux Fill + fingerprint
 // ============================================================
 
-export const CENARIOS_VENSTUDIO = [
-  { id: 'showroom_escuro', nome: 'Showroom Premium', desc: 'Fundo preto, iluminação lateral dramática', gradient: 'from-slate-800 to-slate-900' },
-  { id: 'estudio_branco', nome: 'Estúdio Branco', desc: 'Fundo limpo, luz difusa profissional', gradient: 'from-gray-200 to-gray-300' },
-  { id: 'garagem_premium', nome: 'Garagem Premium', desc: 'Concreto aparente, luz quente', gradient: 'from-stone-700 to-stone-800' },
-  { id: 'urbano_noturno', nome: 'Urbano Noturno', desc: 'Rua moderna, asfalto molhado, neon', gradient: 'from-blue-900 to-indigo-900' },
-  { id: 'neutro_gradiente', nome: 'Fundo Neutro', desc: 'Gradiente cinza, catálogo profissional', gradient: 'from-gray-400 to-gray-500' },
-] as const
-
-export type CenarioId = typeof CENARIOS_VENSTUDIO[number]['id']
-
-// ============================================================
-// Estado de processamento por foto
-// ============================================================
+export type Tier = 'B' | 'C'
 
 export interface FotoProcessamento {
-  fotoUrl: string       // URL original (ou preview blob)
-  fotoId?: string       // ID no banco (se já salva)
-  status: 'pendente' | 'processando' | 'concluido' | 'erro'
+  fotoUrl: string       // URL original
+  fotoId?: string       // ID no banco (fotos_veiculo)
+  status: 'pendente' | 'segmentando' | 'compondo' | 'concluido' | 'erro' | 'rejeitado'
   urlProcessada?: string
+  pngUrl?: string       // URL do PNG segmentado (intermediário)
   erro?: string
   tempoMs?: number
+  tier?: Tier
+  fingerprint?: {
+    hamming_distance: number
+    aprovado: boolean
+  }
 }
 
 export interface UseVenStudioResult {
   fotos: FotoProcessamento[]
   cenario: CenarioId
-  melhorarQualidade: boolean
+  tier: Tier
   processando: boolean
-  progresso: number       // 0-100
+  progresso: number
   fotosProcessadas: number
   totalFotos: number
 
   setCenario: (c: CenarioId) => void
-  setMelhorarQualidade: (v: boolean) => void
+  setTier: (t: Tier) => void
   setFotos: (fotos: FotoProcessamento[]) => void
 
   processarFoto: (index: number, veiculoId: string) => Promise<void>
   processarTodas: (veiculoId: string) => Promise<void>
   reverterFoto: (index: number) => void
-
-  usoHoje: number | null
-  usoMes: number | null
-  limiteAtingido: boolean
-  carregarUso: () => Promise<void>
 }
 
-// ============================================================
-// Hook
-// ============================================================
+const VERCEL_BASE = typeof window !== 'undefined'
+  ? window.location.origin
+  : 'https://ventoro-auto.vercel.app'
 
 export function useVenStudio(): UseVenStudioResult {
   const { user } = useAuth()
   const [fotos, setFotos] = useState<FotoProcessamento[]>([])
   const [cenario, setCenario] = useState<CenarioId>('showroom_escuro')
-  const [melhorarQualidade, setMelhorarQualidade] = useState(false)
+  const [tier, setTier] = useState<Tier>('B')
   const [processando, setProcessando] = useState(false)
-  const [usoHoje, setUsoHoje] = useState<number | null>(null)
-  const [usoMes, setUsoMes] = useState<number | null>(null)
 
   const fotosProcessadas = fotos.filter(f => f.status === 'concluido').length
   const totalFotos = fotos.length
   const progresso = totalFotos > 0
-    ? Math.round((fotos.filter(f => f.status === 'concluido' || f.status === 'erro').length / totalFotos) * 100)
+    ? Math.round((fotos.filter(f => f.status === 'concluido' || f.status === 'erro' || f.status === 'rejeitado').length / totalFotos) * 100)
     : 0
 
-  const limiteAtingido = usoHoje !== null && usoHoje >= 20
-
-  // Refs para evitar stale closures no processamento sequencial
+  // Refs para evitar stale closures
   const fotosRef = useRef(fotos)
   fotosRef.current = fotos
   const cenarioRef = useRef(cenario)
   cenarioRef.current = cenario
-  const melhorarRef = useRef(melhorarQualidade)
-  melhorarRef.current = melhorarQualidade
+  const tierRef = useRef(tier)
+  tierRef.current = tier
 
-  const carregarUso = useCallback(async () => {
-    if (!user) return
-    const [{ data: hoje }, { data: mes }] = await Promise.all([
-      supabase.rpc('contar_uso_ia_hoje', { p_user_id: user.id }),
-      supabase.rpc('contar_uso_ia_mes', { p_user_id: user.id }),
-    ])
-    setUsoHoje(hoje ?? 0)
-    setUsoMes(mes ?? 0)
-  }, [user])
+  const updateFoto = (index: number, update: Partial<FotoProcessamento>) => {
+    setFotos(prev => prev.map((f, i) => i === index ? { ...f, ...update } : f))
+  }
 
   const processarFoto = useCallback(async (index: number, veiculoId: string) => {
     if (!user) return
+    const foto = fotosRef.current[index]
+    if (!foto || foto.status === 'compondo' || foto.status === 'segmentando' || foto.status === 'concluido') return
 
-    // Ler do ref para evitar stale closure
-    const currentFotos = fotosRef.current
-    const foto = currentFotos[index]
-    if (!foto || foto.status === 'processando' || foto.status === 'concluido') return
-
-    // Marcar como processando
-    setFotos(prev => prev.map((f, i) => i === index ? { ...f, status: 'processando' as const, erro: undefined } : f))
+    const currentCenario = cenarioRef.current
+    const currentTier = tierRef.current
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Sessão expirada')
+      const token = session.access_token
 
-      const { data, error } = await supabase.functions.invoke('processar-foto-veiculo', {
-        body: {
-          foto_url: foto.fotoUrl,
-          foto_id: foto.fotoId || null,
-          cenario: cenarioRef.current,
-          veiculo_id: veiculoId,
-          melhorar_qualidade: melhorarRef.current,
-        },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      // ── Etapa 1: Segmentação (Edge Function) ──
+      updateFoto(index, { status: 'segmentando', erro: undefined })
+
+      const segRes = await supabase.functions.invoke('segmentar-veiculo', {
+        body: { foto_url: foto.fotoUrl, veiculo_id: veiculoId },
+        headers: { Authorization: `Bearer ${token}` },
       })
 
-      if (error) {
-        // FunctionsHttpError tem context com o body da resposta
-        let msg = error.message || 'Erro ao processar foto'
+      if (segRes.error) {
+        let msg = segRes.error.message || 'Erro na segmentação'
         try {
-          if ('context' in error && typeof (error as any).context?.json === 'function') {
-            const ctx = await (error as any).context.json()
-            msg = ctx?.error || ctx?.detalhe || msg
+          if ('context' in segRes.error && typeof (segRes.error as any).context?.json === 'function') {
+            const ctx = await (segRes.error as any).context.json()
+            msg = ctx?.error || msg
           }
-        } catch { /* ignore parse errors */ }
-        console.error('[VenStudio] Edge Function erro:', msg)
+        } catch { /* ignore */ }
         throw new Error(msg)
       }
 
-      if (data?.error) {
-        console.error('[VenStudio] Resposta com erro:', data.error)
-        throw new Error(data.error)
+      if (segRes.data?.error) throw new Error(segRes.data.error)
+
+      const pngUrl = segRes.data.png_url
+      updateFoto(index, { status: 'compondo', pngUrl })
+
+      // ── Etapa 2: Composição (Vercel Function) ──
+      const endpoint = currentTier === 'C'
+        ? `${VERCEL_BASE}/api/venstudio/compor-premium`
+        : `${VERCEL_BASE}/api/venstudio/compor-base`
+
+      const compRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          veiculo_png_url: pngUrl,
+          foto_original_url: foto.fotoUrl,
+          cenario_id: currentCenario,
+          veiculo_id: veiculoId,
+          foto_id: foto.fotoId || null,
+        }),
+      })
+
+      const compData = await compRes.json()
+
+      if (!compRes.ok) {
+        if (compData.error === 'integridade_falhou') {
+          updateFoto(index, {
+            status: 'rejeitado',
+            erro: 'Integridade do veículo não aprovada. Foto descartada por segurança.',
+            tier: currentTier,
+            fingerprint: {
+              hamming_distance: compData.hamming_distance,
+              aprovado: false,
+            },
+          })
+          return
+        }
+        throw new Error(compData.error || `Erro ${compRes.status}`)
       }
 
-      setFotos(prev => prev.map((f, i) =>
-        i === index
-          ? { ...f, status: 'concluido' as const, urlProcessada: data.url_processada, tempoMs: data.tempo_ms }
-          : f
-      ))
+      updateFoto(index, {
+        status: 'concluido',
+        urlProcessada: compData.url_processada,
+        tempoMs: compData.tempo_ms,
+        tier: currentTier,
+        fingerprint: compData.fingerprint || undefined,
+      })
 
-      // Atualizar contadores
-      setUsoHoje(prev => (prev ?? 0) + 1)
-      setUsoMes(prev => (prev ?? 0) + 1)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido'
-      setFotos(prev => prev.map((f, i) =>
-        i === index ? { ...f, status: 'erro' as const, erro: msg } : f
-      ))
+      updateFoto(index, { status: 'erro', erro: msg })
     }
   }, [user])
 
@@ -164,28 +178,11 @@ export function useVenStudio(): UseVenStudioResult {
   }, [processarFoto])
 
   const reverterFoto = useCallback((index: number) => {
-    setFotos(prev => prev.map((f, i) =>
-      i === index ? { ...f, status: 'pendente' as const, urlProcessada: undefined, erro: undefined } : f
-    ))
+    updateFoto(index, { status: 'pendente', urlProcessada: undefined, erro: undefined, pngUrl: undefined, fingerprint: undefined })
   }, [])
 
   return {
-    fotos,
-    cenario,
-    melhorarQualidade,
-    processando,
-    progresso,
-    fotosProcessadas,
-    totalFotos,
-    setCenario,
-    setMelhorarQualidade,
-    setFotos,
-    processarFoto,
-    processarTodas,
-    reverterFoto,
-    usoHoje,
-    usoMes,
-    limiteAtingido,
-    carregarUso,
+    fotos, cenario, tier, processando, progresso, fotosProcessadas, totalFotos,
+    setCenario, setTier, setFotos, processarFoto, processarTodas, reverterFoto,
   }
 }
