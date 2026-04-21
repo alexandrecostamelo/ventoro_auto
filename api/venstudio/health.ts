@@ -4,7 +4,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const checks: Record<string, string> = {}
 
   try {
-    const shared = await import('./_shared')
+    const shared = await import('./shared')
     checks._shared = 'ok: exports=' + Object.keys(shared).join(',')
   } catch (e) {
     checks._shared = 'FAIL: ' + (e instanceof Error ? e.message + '\n' + e.stack : String(e))

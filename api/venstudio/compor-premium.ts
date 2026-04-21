@@ -5,7 +5,7 @@ import {
   getServiceClient, verifyUser,
   CENARIOS_VALIDOS, CENARIO_CONFIG, corsHeaders,
   type CenarioId,
-} from './_shared'
+} from './shared'
 
 // ============================================================
 // VenStudio V2 — Tier C: Composição premium com Flux Fill Pro

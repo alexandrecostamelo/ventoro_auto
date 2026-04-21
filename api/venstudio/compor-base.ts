@@ -4,7 +4,7 @@ import {
   getServiceClient, verifyUser, fundoAleatorioUrl,
   CENARIOS_VALIDOS, CENARIO_CONFIG, corsHeaders,
   type CenarioId,
-} from './_shared'
+} from './shared'
 
 // ============================================================
 // VenStudio V2 — Tier B: Composição determinística com Sharp
