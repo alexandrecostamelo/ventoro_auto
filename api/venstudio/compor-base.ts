@@ -27,13 +27,45 @@ function fundoAleatorioUrl(cenarioId: string): string {
 
 const CENARIOS_VALIDOS = ['showroom_escuro', 'estudio_branco', 'garagem_premium', 'urbano_noturno', 'neutro_gradiente'] as const
 type CenarioId = (typeof CENARIOS_VALIDOS)[number]
-const CENARIO_CONFIG: Record<CenarioId, { intensidadeSombra: number; yRatio: number; escalaVeiculo: number; ajustesVeiculo: { brightness: number; saturation: number; contrast: number; sharpen: number } }> = {
-  showroom_escuro: { intensidadeSombra: 0.7, yRatio: 0.62, escalaVeiculo: 0.65, ajustesVeiculo: { brightness: 1.05, saturation: 1.1, contrast: 1.08, sharpen: 0.8 } },
-  estudio_branco: { intensidadeSombra: 0.25, yRatio: 0.65, escalaVeiculo: 0.6, ajustesVeiculo: { brightness: 1.08, saturation: 1.05, contrast: 1.02, sharpen: 0.5 } },
-  garagem_premium: { intensidadeSombra: 0.5, yRatio: 0.63, escalaVeiculo: 0.62, ajustesVeiculo: { brightness: 1.02, saturation: 1.08, contrast: 1.05, sharpen: 0.6 } },
-  urbano_noturno: { intensidadeSombra: 0.6, yRatio: 0.60, escalaVeiculo: 0.58, ajustesVeiculo: { brightness: 0.95, saturation: 1.15, contrast: 1.1, sharpen: 0.7 } },
-  neutro_gradiente: { intensidadeSombra: 0.35, yRatio: 0.64, escalaVeiculo: 0.6, ajustesVeiculo: { brightness: 1.03, saturation: 1.02, contrast: 1.05, sharpen: 0.5 } },
+
+const CENARIO_CONFIG: Record<CenarioId, {
+  yRatio: number
+  sombraAlpha: number
+  ajustesVeiculo: { brightness: number; saturation: number; contrast: number; sharpen: number }
+  tintMatrix: number[][] | null  // 3x3 recomb matrix for color matching, null = no tint
+}> = {
+  showroom_escuro: {
+    yRatio: 0.92,
+    sombraAlpha: 0.8,
+    ajustesVeiculo: { brightness: 1.05, saturation: 1.1, contrast: 1.08, sharpen: 0.8 },
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+  },
+  estudio_branco: {
+    yRatio: 0.92,
+    sombraAlpha: 0.5,
+    ajustesVeiculo: { brightness: 1.08, saturation: 1.05, contrast: 1.02, sharpen: 0.5 },
+    tintMatrix: null,  // sem tint
+  },
+  garagem_premium: {
+    yRatio: 0.92,
+    sombraAlpha: 0.75,
+    ajustesVeiculo: { brightness: 1.02, saturation: 1.08, contrast: 1.05, sharpen: 0.6 },
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+  },
+  urbano_noturno: {
+    yRatio: 0.92,
+    sombraAlpha: 0.8,
+    ajustesVeiculo: { brightness: 0.95, saturation: 1.15, contrast: 1.1, sharpen: 0.7 },
+    tintMatrix: [[1.05, 0.02, 0], [0, 1.0, 0], [0, 0, 0.92]],  // warm amber
+  },
+  neutro_gradiente: {
+    yRatio: 0.92,
+    sombraAlpha: 0.6,
+    ajustesVeiculo: { brightness: 1.03, saturation: 1.02, contrast: 1.05, sharpen: 0.5 },
+    tintMatrix: [[0.98, 0, 0.02], [0, 0.98, 0.02], [0, 0, 1.02]],  // cool gray
+  },
 }
+
 const ALLOWED_ORIGINS = new Set(['https://ventoro.com.br', 'https://www.ventoro.com.br', 'http://localhost:5173', 'http://localhost:8080', 'https://ventoro-auto.vercel.app'])
 function corsHeaders(origin: string | null) {
   const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://ventoro.com.br'
@@ -45,8 +77,8 @@ function corsHeaders(origin: string | null) {
 // Veículo preservado pixel a pixel. Apenas o fundo é substituído.
 // ============================================================
 
-const FUNDO_W = 1440
-const FUNDO_H = 810
+const FUNDO_W = 1920
+const FUNDO_H = 1080
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin as string | null
@@ -110,8 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('pipeline_versao', 'v2_base')
       .gte('created_at', inicioMes.toISOString())
 
-    // Buscar plano da garagem ou usar default
-    let limiteMensal = 30 // Pro default
+    let limiteMensal = 30
     if (veiculo.garagem_id) {
       const { data: garagem } = await supabase
         .from('garagens')
@@ -144,66 +175,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const vW = veiculoMeta.width || 800
     const vH = veiculoMeta.height || 600
 
-    // Escalar veículo para caber no fundo
-    const targetW = Math.round(FUNDO_W * config.escalaVeiculo)
+    // [FIX 1] Veículo ocupa 75-90% da largura (era ~40%)
+    const targetW = Math.min(1700, Math.max(1400, vW))
     const scale = targetW / vW
     const targetH = Math.round(vH * scale)
 
-    // Ajustes cosméticos no veículo (determinísticos — sem IA)
+    // Ajustes cosméticos: modulate → contrast → sharpen → tint
     const { brightness, saturation, contrast, sharpen: sharpSigma } = config.ajustesVeiculo
-    let veiculoProcessado = sharp(pngBuffer)
+    let pipeline = sharp(pngBuffer)
       .resize(targetW, targetH, { fit: 'inside', withoutEnlargement: false })
       .modulate({ brightness, saturation })
-      .linear(contrast, -(128 * (contrast - 1))) // contrast via linear
+      .linear(contrast, -(128 * (contrast - 1)))
 
     if (sharpSigma > 0) {
-      veiculoProcessado = veiculoProcessado.sharpen({ sigma: sharpSigma })
+      pipeline = pipeline.sharpen({ sigma: sharpSigma })
     }
 
-    const veiculoFinal = await veiculoProcessado.png().toBuffer()
+    // [FIX 4] Color matching via recomb matrix (tint por último)
+    if (config.tintMatrix) {
+      pipeline = pipeline.recomb(config.tintMatrix as [number[], number[], number[]])
+    }
 
-    // ── Gerar sombra a partir do canal alpha ──
+    const veiculoFinal = await pipeline.png().toBuffer()
+
+    // ── [FIX 3] Sombra mais visível ──
+    const sombraH = Math.round(targetH * 0.25)  // era 0.15
     const alphaChannel = await sharp(veiculoFinal)
-      .extractChannel(3) // alpha
-      .resize(targetW, Math.round(targetH * 0.15)) // achatar verticalmente
-      .blur(40)
+      .extractChannel(3)
+      .resize(targetW, sombraH)
+      .blur(60)  // era 40
       .toBuffer()
 
-    // Criar sombra preta com alpha do canal extraído
+    // Sombra preta semi-transparente
     const sombra = await sharp({
       create: {
         width: targetW,
-        height: Math.round(targetH * 0.15),
+        height: sombraH,
         channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: config.intensidadeSombra },
+        background: { r: 0, g: 0, b: 0, alpha: Math.round(255 * config.sombraAlpha) },
       },
     })
-      .composite([{
-        input: alphaChannel,
-        blend: 'dest-in',
-      }])
+      .composite([{ input: alphaChannel, blend: 'dest-in' }])
       .png()
       .toBuffer()
 
-    // ── Posição no fundo ──
-    const xPos = Math.round((FUNDO_W - targetW) / 2)
-    const yVeiculo = Math.round(FUNDO_H * config.yRatio - targetH / 2)
-    const ySombra = yVeiculo + targetH - 5 // sombra logo abaixo do veículo
+    // ── [FIX 2 + 7] Posição: y_ratio 0.92, offsetX com variação ±50px ──
+    const xPos = Math.round((FUNDO_W - targetW) / 2 + (Math.random() * 100 - 50))
+    const yVeiculo = Math.round(FUNDO_H * config.yRatio - targetH)  // bottom do carro no y_ratio
+    const ySombra = yVeiculo + targetH - 5
 
-    // ── Compor: fundo + sombra + veículo ──
+    // ── Compor: fundo (upscale) + sombra (over) + veículo ──
     const resultado = await sharp(fundoBuffer)
       .resize(FUNDO_W, FUNDO_H, { fit: 'cover' })
       .composite([
         {
           input: sombra,
-          left: xPos,
-          top: Math.min(ySombra, FUNDO_H - Math.round(targetH * 0.15)),
-          blend: 'multiply',
+          left: Math.max(0, xPos),
+          top: Math.min(ySombra, FUNDO_H - sombraH),
+          blend: 'over',  // [FIX 3] era 'multiply' (invisível em fundos escuros)
         },
         {
           input: veiculoFinal,
-          left: xPos,
-          top: Math.max(yVeiculo, 0),
+          left: Math.max(0, xPos),
+          top: Math.max(0, yVeiculo),
           blend: 'over',
         },
       ])
@@ -240,14 +274,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         foto_processada_url: urlProcessada,
         cenario: cenario_id,
         pipeline_versao: 'v2_base',
-        aprovado: true, // Tier B é sempre aprovado (determinístico)
+        aprovado: true,
         custo_estimado: 0.006,
         tempo_processamento_ms: tempoMs,
       })
       .select('id')
       .single()
 
-    // ── Atualizar fotos_veiculo se foto_id fornecido ──
     if (foto_id) {
       await supabase
         .from('fotos_veiculo')
