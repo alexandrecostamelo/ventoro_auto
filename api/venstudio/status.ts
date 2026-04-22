@@ -117,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${STABILITY_API_KEY}`,
-          'Accept': 'application/json',
+          'Accept': '*/*',
           ...formData.getHeaders(),
         },
         body: formData.getBuffer(),
@@ -186,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const pollResp = await fetch(
         `https://api.stability.ai/v2beta/results/${proc.generation_id}`,
-        { headers: { 'Authorization': `Bearer ${STABILITY_API_KEY}`, 'Accept': 'application/json' } }
+        { headers: { 'Authorization': `Bearer ${STABILITY_API_KEY}`, 'Accept': '*/*' } }
       )
 
       if (pollResp.status === 202) {
@@ -196,17 +196,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (pollResp.status === 200) {
         const pollContentType = pollResp.headers.get('content-type') || ''
 
-        // Binário direto
+        // Binário direto (image/jpeg, image/png, etc.)
         if (pollContentType.startsWith('image/')) {
           const resultBuffer = Buffer.from(await pollResp.arrayBuffer())
           return await salvarResultado(db, proc, processamentoId, resultBuffer, res)
         }
 
-        // JSON
+        // Pode ser application/octet-stream ou outro binário
+        if (!pollContentType.includes('json')) {
+          const resultBuffer = Buffer.from(await pollResp.arrayBuffer())
+          if (resultBuffer.length > 1000) {
+            // Provavelmente uma imagem
+            return await salvarResultado(db, proc, processamentoId, resultBuffer, res)
+          }
+        }
+
+        // JSON fallback
         const result = await pollResp.json() as { image?: string; artifacts?: Array<{ base64?: string }> }
         const base64Image = result.image || result.artifacts?.[0]?.base64
         if (!base64Image) {
-          await db.from('processamentos_ia').update({ status: 'erro', erro: 'Sem imagem no resultado async' }).eq('id', processamentoId)
+          const keys = Object.keys(result).join(', ')
+          const ct = pollContentType
+          await db.from('processamentos_ia').update({ status: 'erro', erro: `Async sem imagem. CT: ${ct} Keys: ${keys}` }).eq('id', processamentoId)
           return res.status(200).json({ status: 'erro', erro: 'Sem imagem' })
         }
 
