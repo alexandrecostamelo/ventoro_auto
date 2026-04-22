@@ -19,7 +19,7 @@ async function verifyUser(authHeader: string | null) {
 }
 
 // ── Cenários válidos ──
-const CENARIOS_VALIDOS = ['showroom', 'deserto', 'neve', 'garagem_luxo'] as const
+const CENARIOS_VALIDOS = ['showroom', 'estudio', 'garagem_luxo', 'externo', 'urbano'] as const
 type CenarioId = (typeof CENARIOS_VALIDOS)[number]
 
 const CENARIO_PROMPTS: Record<CenarioId, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
@@ -29,22 +29,28 @@ const CENARIO_PROMPTS: Record<CenarioId, { prompt: string; light_direction: stri
     light_strength: 0.7,
     preserve_subject: 1.0,
   },
-  deserto: {
-    prompt: 'Empty desert highway at golden hour, warm orange sand dunes on both sides, dramatic long shadows on smooth asphalt road, clear blue sky fading to warm orange at horizon, distant rocky mountains, cinematic wide landscape, professional automotive photography',
-    light_direction: 'left',
-    light_strength: 0.8,
-    preserve_subject: 1.0,
-  },
-  neve: {
-    prompt: 'Scenic mountain road in winter, fresh white snow covering pine trees and ground, crisp clear blue sky, soft morning sunlight reflecting off snow, majestic snow-capped peaks in background, clean plowed asphalt road, peaceful cold atmosphere, professional automotive photography',
+  estudio: {
+    prompt: 'Professional photography studio, seamless white infinity backdrop, perfectly smooth light gray polished concrete floor with soft reflections, high-key studio lighting with large softboxes, clean minimalist commercial automotive photography, no shadows, bright even lighting',
     light_direction: 'above',
-    light_strength: 0.6,
+    light_strength: 0.8,
     preserve_subject: 1.0,
   },
   garagem_luxo: {
     prompt: 'Underground private luxury garage, smooth dark epoxy floor with subtle reflections, exposed concrete ceiling with industrial pendant lights, matte black walls with LED strip accent lighting along the edges, vintage racing posters slightly blurred in background, single warm spotlight highlighting center of space, exclusive private car collection atmosphere',
     light_direction: 'above',
     light_strength: 0.75,
+    preserve_subject: 1.0,
+  },
+  externo: {
+    prompt: 'Elegant outdoor scenic location at golden hour, smooth clean asphalt road, lush green manicured lawn on the sides, soft warm sunset light from the left, clear sky with gentle warm gradient from blue to golden orange, distant modern architecture blurred in background, professional automotive photography, cinematic atmosphere',
+    light_direction: 'left',
+    light_strength: 0.7,
+    preserve_subject: 1.0,
+  },
+  urbano: {
+    prompt: 'Modern city street at night, wet asphalt road with beautiful reflections, soft neon lights from nearby buildings in blue and purple tones, subtle bokeh city lights in background, dramatic moody atmosphere, gentle rain puddle reflections on the ground, professional automotive night photography',
+    light_direction: 'right',
+    light_strength: 0.6,
     preserve_subject: 1.0,
   },
 }
