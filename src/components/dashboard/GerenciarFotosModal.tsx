@@ -300,7 +300,7 @@ export default function GerenciarFotosModal({
               {/* VenStudio IA */}
               <button
                 type="button"
-                onClick={() => window.location.href = '/studio'}
+                onClick={() => window.location.href = `/studio?veiculo=${veiculoId}`}
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)] px-4 py-2.5 text-small font-medium hover:bg-[var(--color-brand-primary)]/20 transition-colors"
               >
                 <Wand2 className="w-4 h-4" /> VenStudio IA
