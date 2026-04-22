@@ -194,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // ── Finalizar: fingerprint + salvar ──
 async function finalizarProcessamento(
   db: ReturnType<typeof getServiceClient>,
-  sharp: typeof import('sharp').default,
+  sharp: any,
   bmvbhash: (data: { data: Uint8Array; width: number; height: number }, bits: number) => string,
   processamentoId: string,
   veiculoId: string,
