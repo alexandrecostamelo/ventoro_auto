@@ -76,8 +76,8 @@ export default function VenStudioPage() {
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="max-w-2xl mx-auto pt-28 pb-16 px-4 text-center">
-          <div className="w-20 h-20 rounded-2xl bg-[var(--color-brand-primary)]/10 flex items-center justify-center mx-auto mb-6">
-            <Sparkles className="h-10 w-10 text-[var(--color-brand-primary)]" />
+          <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--brand-primary))]/10 flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="h-10 w-10 text-[hsl(var(--brand-primary))]" />
           </div>
           <h1 className="text-3xl font-bold font-[family-name:var(--font-display)] text-text-primary mb-3">VenStudio IA</h1>
           <p className="text-text-secondary max-w-lg mx-auto mb-8">
@@ -110,7 +110,7 @@ export default function VenStudioPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
-              <Wand2 className="h-6 w-6 text-[var(--color-brand-primary)]" /> VenStudio IA
+              <Wand2 className="h-6 w-6 text-[hsl(var(--brand-primary))]" /> VenStudio IA
             </h1>
             {veiculoInfo && (
               <p className="text-sm text-muted-foreground">{veiculoInfo.marca} {veiculoInfo.modelo} — {fotos.length} foto(s)</p>
@@ -153,7 +153,7 @@ export default function VenStudioPage() {
                         key={c.id}
                         onClick={() => setCenario(c.id as CenarioV2Id)}
                         className={`text-left rounded-lg border bg-card shadow-sm cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
-                          cenario === c.id ? "ring-2 ring-[var(--color-brand-primary)] shadow-lg" : "border-border"
+                          cenario === c.id ? "ring-2 ring-[hsl(var(--brand-primary))] shadow-lg" : "border-border"
                         }`}
                       >
                         <div className={`h-20 bg-gradient-to-br ${c.gradient} flex items-center justify-center text-3xl`}>
@@ -163,7 +163,7 @@ export default function VenStudioPage() {
                           <p className="font-semibold text-sm text-foreground">{c.label}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{c.descricao}</p>
                           {cenario === c.id && (
-                            <Badge className="mt-2 bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)] text-[10px]">
+                            <Badge className="mt-2 bg-[hsl(var(--brand-primary))]/10 text-[hsl(var(--brand-primary))] text-[10px]">
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
                             </Badge>
                           )}
@@ -222,7 +222,7 @@ export default function VenStudioPage() {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleProcessar}
-                    className="flex-1 gap-2 bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary)]/90 text-white"
+                    className="flex-1 gap-2 bg-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))]/90 text-white"
                   >
                     <Sparkles className="h-4 w-4" /> Processar {fotos.length} foto(s) com IA
                   </Button>
@@ -234,7 +234,7 @@ export default function VenStudioPage() {
             {processando && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-[var(--color-brand-primary)]" />
+                  <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--brand-primary))]" />
                   <p className="font-semibold">Processando fotos com cenário {CENARIOS_V2[cenario].label}...</p>
                 </div>
                 <Progress value={venStudio.progresso} className="h-2" />
@@ -304,7 +304,7 @@ export default function VenStudioPage() {
                   <Button variant="outline" onClick={() => venStudio.resetar()} className="gap-2">
                     <RotateCcw className="h-4 w-4" /> Processar novamente
                   </Button>
-                  <Button onClick={() => navigate(-1)} className="gap-2 bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary)]/90 text-white">
+                  <Button onClick={() => navigate(-1)} className="gap-2 bg-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))]/90 text-white">
                     Voltar ao anúncio
                   </Button>
                 </div>
