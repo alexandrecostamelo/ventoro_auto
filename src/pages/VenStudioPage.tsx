@@ -49,7 +49,7 @@ export default function VenStudioPage() {
 
     async function load() {
       const [fotosRes, veiculoRes] = await Promise.all([
-        supabase.from("fotos_veiculos").select("id, url_original, url_processada").eq("veiculo_id", veiculoId).order("ordem"),
+        supabase.from("fotos_veiculo").select("id, url_original, url_processada").eq("veiculo_id", veiculoId).order("ordem"),
         supabase.from("veiculos").select("marca, modelo").eq("id", veiculoId).single(),
       ]);
       if (fotosRes.data) setFotos(fotosRes.data);

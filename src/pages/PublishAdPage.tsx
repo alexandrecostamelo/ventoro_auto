@@ -22,7 +22,6 @@ import { usePublicarVeiculo, type DadosNovoVeiculo, type FotoPublicada } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { validarArquivoImagem } from "@/utils/imageCompression";
-import { useVenStudioV2, type FotoResultado } from "@/hooks/useVenStudioV2";
 import { CENARIOS_V2, CENARIOS_V2_LIST, type CenarioV2Id } from "@/lib/venstudio-cenarios-v2";
 
 const STEPS = [
@@ -110,6 +109,7 @@ export default function PublishAdPage() {
   const [step, setStep] = useState(1);
   const [stepError, setStepError] = useState<string | null>(null);
   const [slugPublicado, setSlugPublicado] = useState<string | null>(null);
+  const [veiculoIdPublicado, setVeiculoIdPublicado] = useState<string | null>(null);
   const [uploadInfo, setUploadInfo] = useState<string | null>(null);
 
   // Fotos: File objects + object URLs para preview (separados do form)
@@ -143,9 +143,7 @@ export default function PublishAdPage() {
   const [aiSugestoes, setAiSugestoes] = useState<string[]>([]);
   const [aiGeracoes, setAiGeracoes] = useState(0);
   const [fotosPublicadas, setFotosPublicadas] = useState<FotoPublicada[]>([]);
-  const venStudio = useVenStudioV2();
   const [studioCenario, setStudioCenario] = useState<CenarioV2Id>('showroom');
-  const [studioOpcoes, setStudioOpcoes] = useState<{ light_direction?: string; light_strength?: number; preserve_subject?: number }>({});
 
   const progress = (step / STEPS.length) * 100;
 
@@ -254,10 +252,9 @@ export default function PublishAdPage() {
     setUploadInfo(null);
     if (resultado) {
       setSlugPublicado(resultado.slug);
+      setVeiculoIdPublicado(resultado.id);
       setFotosPublicadas(resultado.fotos);
       setStep(7);
-
-      // VenStudio V2: processamento é feito inline no Step 3 (Stability AI)
     }
   };
 
@@ -321,12 +318,6 @@ export default function PublishAdPage() {
                 previews={fotoPreviews}
                 cenario={studioCenario}
                 onCenarioChange={setStudioCenario}
-                opcoes={studioOpcoes}
-                onOpcoesChange={setStudioOpcoes}
-                venStudio={venStudio}
-                veiculoId={slugPublicado}
-                onSkip={() => updateForm("studioProcessed", false)}
-                onConfirm={() => updateForm("studioProcessed", true)}
               />
             )}
             {step === 4 && (
@@ -347,9 +338,8 @@ export default function PublishAdPage() {
                 form={form}
                 navigate={navigate}
                 slug={slugPublicado}
-                studioFotos={[]}
-                studioProgresso={0}
-                studioProcessando={false}
+                veiculoId={veiculoIdPublicado}
+                studioCenario={studioCenario}
               />
             )}
         </div>
@@ -667,22 +657,11 @@ function StepPhotos({
 }
 
 /* ──────────── Step 3: VenStudio IA V2 — Stability AI ──────────── */
-function StepStudio({ previews, cenario, onCenarioChange, opcoes, onOpcoesChange, venStudio, veiculoId, onSkip, onConfirm }: {
+function StepStudio({ previews, cenario, onCenarioChange }: {
   previews: string[];
   cenario: CenarioV2Id;
   onCenarioChange: (c: CenarioV2Id) => void;
-  opcoes: { light_direction?: string; light_strength?: number; preserve_subject?: number };
-  onOpcoesChange: (o: { light_direction?: string; light_strength?: number; preserve_subject?: number }) => void;
-  venStudio: ReturnType<typeof useVenStudioV2>;
-  veiculoId: string;
-  onSkip: () => void;
-  onConfirm: () => void;
 }) {
-  const [confirmou, setConfirmou] = useState(false);
-  const [mostrarAvancado, setMostrarAvancado] = useState(false);
-  const processando = venStudio.status === 'processando';
-  const concluido = venStudio.status === 'concluido';
-
   if (previews.length === 0) {
     return (
       <div className="space-y-6">
@@ -695,21 +674,12 @@ function StepStudio({ previews, cenario, onCenarioChange, opcoes, onOpcoesChange
           <CardContent className="p-8 text-center">
             <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="font-semibold">Nenhuma foto adicionada</p>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">Volte à etapa anterior e adicione fotos para usar o VenStudio</p>
-            <Button variant="outline" onClick={onSkip}>Pular esta etapa</Button>
+            <p className="text-sm text-muted-foreground mt-1">Volte à etapa anterior e adicione fotos para usar o VenStudio</p>
           </CardContent>
         </Card>
       </div>
     );
   }
-
-  const cenarioConfig = CENARIOS_V2[cenario];
-
-  const handleProcessar = async () => {
-    const fotosInput = previews.map((url, i) => ({ url, id: String(i) }));
-    await venStudio.processarTodas(fotosInput, cenario, veiculoId, opcoes as { light_direction?: 'above' | 'left' | 'right' | 'below'; light_strength?: number; preserve_subject?: number });
-    onConfirm();
-  };
 
   return (
     <div className="space-y-6">
@@ -717,7 +687,7 @@ function StepStudio({ previews, cenario, onCenarioChange, opcoes, onOpcoesChange
         <h2 className="text-2xl font-bold font-[family-name:var(--font-display)] flex items-center gap-2">
           <Wand2 className="h-6 w-6 text-primary" /> VenStudio IA
         </h2>
-        <p className="text-muted-foreground mt-1">Transforme suas fotos em imagens profissionais</p>
+        <p className="text-muted-foreground mt-1">Escolha o cenário para suas fotos profissionais</p>
       </div>
 
       {/* Banner de confiança */}
@@ -734,185 +704,59 @@ function StepStudio({ previews, cenario, onCenarioChange, opcoes, onOpcoesChange
       </Card>
 
       {/* Grid de cenários */}
-      {!processando && !concluido && (
-        <>
-          <div>
-            <p className="text-sm font-semibold mb-3">Escolha o cenário</p>
-            <div className="grid grid-cols-2 gap-3">
-              {CENARIOS_V2_LIST.map((c) => (
-                <button
-                  type="button"
-                  key={c.id}
-                  onClick={() => onCenarioChange(c.id as CenarioV2Id)}
-                  className={`text-left rounded-lg border bg-card shadow-sm cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
-                    cenario === c.id ? "ring-2 ring-primary shadow-lg" : "border-border"
-                  }`}
-                >
-                  <div className={`h-20 bg-gradient-to-br ${c.gradient} flex items-center justify-center text-3xl`}>
-                    {c.emoji}
-                  </div>
-                  <div className="p-3">
-                    <p className="font-semibold text-sm text-foreground">{c.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{c.descricao}</p>
-                    {cenario === c.id && (
-                      <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
-                      </Badge>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Controles avançados */}
-          <div>
-            <button
-              onClick={() => setMostrarAvancado(!mostrarAvancado)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronDown className={`h-4 w-4 transition-transform ${mostrarAvancado ? 'rotate-180' : ''}`} />
-              Ajustes de iluminação (avançado)
-            </button>
-            {mostrarAvancado && (
-              <Card className="mt-3">
-                <CardContent className="p-4 space-y-4">
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm text-muted-foreground w-40">Direção da luz</label>
-                    <Select
-                      value={opcoes.light_direction ?? cenarioConfig.light_source_direction}
-                      onValueChange={(v) => onOpcoesChange({ ...opcoes, light_direction: v })}
-                    >
-                      <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="above">De cima</SelectItem>
-                        <SelectItem value="left">Esquerda</SelectItem>
-                        <SelectItem value="right">Direita</SelectItem>
-                        <SelectItem value="below">De baixo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm text-muted-foreground w-40">Intensidade</label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={opcoes.light_strength ?? cenarioConfig.light_source_strength}
-                      onChange={(e) => onOpcoesChange({ ...opcoes, light_strength: parseFloat(e.target.value) })}
-                      className="flex-1"
-                    />
-                    <span className="text-xs w-8 text-right">{(opcoes.light_strength ?? cenarioConfig.light_source_strength).toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm text-muted-foreground w-40">Preservação</label>
-                    <input
-                      type="range"
-                      min="0.8"
-                      max="1"
-                      step="0.01"
-                      value={opcoes.preserve_subject ?? 0.95}
-                      onChange={(e) => onOpcoesChange({ ...opcoes, preserve_subject: parseFloat(e.target.value) })}
-                      className="flex-1"
-                    />
-                    <span className="text-xs w-16 text-right">
-                      {(opcoes.preserve_subject ?? 0.95) >= 0.95 ? 'Máxima' : 'Balanceado'}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Galeria de fotos com status */}
       <div>
-        <p className="text-sm font-medium mb-2">{previews.length} foto(s) {processando ? 'em processamento' : concluido ? 'processadas' : 'serão processadas'}</p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {previews.map((url, i) => {
-            const fotoResult = venStudio.fotos[i];
-            return (
-              <div key={i} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border">
-                <img src={fotoResult?.urlProcessada || url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
-                {fotoResult && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    {fotoResult.status === 'processando' && <Loader2 className="h-5 w-5 text-white animate-spin" />}
-                    {fotoResult.status === 'concluido' && <CheckCircle2 className="h-5 w-5 text-green-400" />}
-                    {fotoResult.status === 'erro' && <AlertTriangle className="h-5 w-5 text-red-400" />}
-                  </div>
+        <p className="text-sm font-semibold mb-3">Escolha o cenário</p>
+        <div className="grid grid-cols-2 gap-3">
+          {CENARIOS_V2_LIST.map((c) => (
+            <button
+              type="button"
+              key={c.id}
+              onClick={() => onCenarioChange(c.id as CenarioV2Id)}
+              className={`text-left rounded-lg border bg-card shadow-sm cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
+                cenario === c.id ? "ring-2 ring-primary shadow-lg" : "border-border"
+              }`}
+            >
+              <div className={`h-20 bg-gradient-to-br ${c.gradient} flex items-center justify-center text-3xl`}>
+                {c.emoji}
+              </div>
+              <div className="p-3">
+                <p className="font-semibold text-sm text-foreground">{c.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{c.descricao}</p>
+                {cenario === c.id && (
+                  <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">
+                    <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
+                  </Badge>
                 )}
               </div>
-            );
-          })}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Barra de progresso */}
-      {processando && (
-        <div className="space-y-2">
-          <Progress value={venStudio.progresso} className="h-2" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Processando... ~20s por foto</span>
-            <Button variant="ghost" size="sm" onClick={venStudio.cancelar} className="text-xs h-7">
-              Cancelar
-            </Button>
+      {/* Preview de fotos */}
+      <div>
+        <p className="text-sm font-medium mb-2">{previews.length} foto(s) serão processadas após publicação</p>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {previews.map((url, i) => (
+            <div key={i} className="aspect-[4/3] rounded-lg overflow-hidden border border-border">
+              <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Info */}
+      <Card className="border-blue-500/20 bg-blue-500/5">
+        <CardContent className="p-4 flex items-start gap-3">
+          <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-700 dark:text-blue-400">Processamento após publicação</p>
+            <p className="text-muted-foreground mt-0.5">
+              O VenStudio processará suas fotos automaticamente após a publicação do anúncio. Você pode acompanhar e reprocessar em "Meus anúncios".
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Erro */}
-      {venStudio.erro && (
-        <Card className="border-red-500/30 bg-red-500/5">
-          <CardContent className="p-3 flex items-center gap-2 text-sm text-red-500">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            {venStudio.erro}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Checkbox legal */}
-      {!processando && (
-        <label className="flex items-start gap-3 p-4 rounded-xl border border-border bg-muted/30 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={confirmou}
-            onChange={(e) => setConfirmou(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-border accent-primary"
-          />
-          <span className="text-sm text-muted-foreground">
-            Confirmo que as fotos processadas representam fielmente o veículo real anunciado.
-          </span>
-        </label>
-      )}
-
-      {/* Botões */}
-      {!processando && !concluido && (
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={onSkip} className="flex-1">
-            Pular esta etapa
-          </Button>
-          <Button
-            onClick={handleProcessar}
-            disabled={!confirmou}
-            className="flex-1 bg-primary hover:bg-primary/90"
-          >
-            <Wand2 className="h-4 w-4 mr-2" /> Processar {previews.length} foto(s)
-          </Button>
-        </div>
-      )}
-
-      {concluido && (
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => { venStudio.resetar(); }} className="flex-1">
-            <RotateCcw className="h-4 w-4 mr-2" /> Reprocessar
-          </Button>
-          <Button onClick={onConfirm} className="flex-1 bg-primary hover:bg-primary/90">
-            Avançar <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -1562,18 +1406,13 @@ function StepPlan({ form, updateForm, user }: {
 }
 
 /* ──────────── Step 7: Success ──────────── */
-function StepSuccess({ form, navigate, slug, studioFotos, studioProgresso, studioProcessando }: {
+function StepSuccess({ form, navigate, slug, veiculoId, studioCenario }: {
   form: FormData;
   navigate: (path: string) => void;
   slug: string | null;
-  studioFotos: { status: string; urlProcessada?: string; erro?: string }[];
-  studioProgresso: number;
-  studioProcessando: boolean;
+  veiculoId: string | null;
+  studioCenario: string;
 }) {
-  const fotosOk = studioFotos.filter(f => f.status === 'concluido').length;
-  const fotosErro = studioFotos.filter(f => f.status === 'erro').length;
-  const showStudio = form.studioProcessed && studioFotos.length > 0;
-
   return (
     <div className="text-center py-12">
       <motion.div
@@ -1592,31 +1431,24 @@ function StepSuccess({ form, navigate, slug, studioFotos, studioProgresso, studi
           Você receberá notificações quando alguém demonstrar interesse.
         </p>
 
-        {/* VenStudio Progress */}
-        {showStudio && (
+        {/* VenStudio CTA */}
+        {veiculoId && (
           <Card className="max-w-lg mx-auto mt-6 bg-primary/5 border-primary/20 text-left">
             <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                {studioProcessando ? (
-                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }}>
-                    <Wand2 className="h-5 w-5 text-primary" />
-                  </motion.div>
-                ) : (
-                  <Wand2 className="h-5 w-5 text-primary" />
-                )}
-                <p className="font-semibold text-sm">
-                  {studioProcessando
-                    ? "VenStudio IA processando fotos..."
-                    : studioProgresso === 100
-                    ? "VenStudio IA concluído!"
-                    : "VenStudio IA"}
-                </p>
+              <div className="flex items-center gap-2 mb-2">
+                <Wand2 className="h-5 w-5 text-primary" />
+                <p className="font-semibold text-sm">VenStudio IA — Cenário: {studioCenario}</p>
               </div>
-              <Progress value={studioProgresso} className="h-2 mb-2" />
-              <p className="text-xs text-muted-foreground">
-                {fotosOk}/{studioFotos.length} fotos processadas
-                {fotosErro > 0 && ` · ${fotosErro} com erro (fotos originais preservadas)`}
+              <p className="text-xs text-muted-foreground mb-3">
+                Transforme suas fotos com cenários profissionais gerados por IA.
               </p>
+              <Button
+                size="sm"
+                onClick={() => navigate(`/studio?veiculo=${veiculoId}`)}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <Sparkles className="h-4 w-4 mr-2" /> Processar fotos com VenStudio
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -1640,7 +1472,7 @@ function StepSuccess({ form, navigate, slug, studioFotos, studioProgresso, studi
             <CardContent className="p-4 text-center">
               <Sparkles className="h-5 w-5 text-primary mx-auto mb-1" />
               <p className="text-xs text-muted-foreground">VenStudio</p>
-              <p className="font-bold text-sm">{form.studioProcessed ? "Ativo" : "Não"}</p>
+              <p className="font-bold text-sm">Disponível</p>
             </CardContent>
           </Card>
         </div>
