@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const cenario = CENARIO_PROMPTS[proc.cenario] || CENARIO_PROMPTS.showroom
       const FormData = (await import('form-data')).default
       const formData = new FormData()
-      formData.append('image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
+      formData.append('subject_image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
       formData.append('background_prompt', cenario.prompt)
       formData.append('preserve_original_subject', String(proc.preserve_subject ?? cenario.preserve_subject))
       formData.append('light_source_direction', proc.light_direction ?? cenario.light_direction)
