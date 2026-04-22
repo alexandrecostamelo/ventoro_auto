@@ -305,14 +305,7 @@ export default function PublishAdPage() {
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25 }}
-          >
+        <div>
             {step === 1 && (
               <StepVehicleData form={form} updateForm={updateForm} toggleOpcional={toggleOpcional} />
             )}
@@ -359,8 +352,7 @@ export default function PublishAdPage() {
                 studioProcessando={false}
               />
             )}
-          </motion.div>
-        </AnimatePresence>
+        </div>
 
         {step < 7 && (
           <div className="mt-8 pt-6 border-t border-border space-y-3">
