@@ -185,7 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (proc.status === 'processando' && proc.generation_id) {
     try {
       const pollResp = await fetch(
-        `https://api.stability.ai/v2beta/stable-image/edit/result/${proc.generation_id}`,
+        `https://api.stability.ai/v2beta/results/${proc.generation_id}`,
         { headers: { 'Authorization': `Bearer ${STABILITY_API_KEY}`, 'Accept': 'application/json' } }
       )
 
