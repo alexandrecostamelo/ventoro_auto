@@ -26,10 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     count: data.length,
     stability_key_set: !!process.env.STABILITY_API_KEY,
     service_role_set: !!SUPABASE_SERVICE_ROLE_KEY,
-    records: data.map(r => ({
-      ...r,
-      foto_original_url: r.foto_original_url ? r.foto_original_url.substring(0, 100) + '...' : null,
-      url_foto_original: r.url_foto_original ? r.url_foto_original.substring(0, 100) + '...' : null,
-    })),
+    records: data,
   })
 }
