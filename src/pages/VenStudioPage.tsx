@@ -4,7 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import {
   Sparkles, ArrowLeft, CheckCircle2, Wand2, Camera, ShieldCheck,
   ChevronDown, Loader2, RotateCcw, AlertTriangle, X, Trash2,
-  ZoomIn, Check,
+  ZoomIn, Check, ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CENARIOS_V2, CENARIOS_V2_LIST, type CenarioV2Id } from "@/lib/venstudio-cenarios-v2";
-import { useVenStudioV2, type FotoResultado } from "@/hooks/useVenStudioV2";
+import { useVenStudioV2 } from "@/hooks/useVenStudioV2";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
@@ -20,6 +20,8 @@ interface FotoDB {
   id: string;
   url_original: string;
   url_processada: string | null;
+  processada_por_ia: boolean;
+  ordem: number;
 }
 
 export default function VenStudioPage() {
@@ -28,7 +30,7 @@ export default function VenStudioPage() {
   const veiculoId = searchParams.get("veiculo");
   const { user, loading: authLoading } = useAuth();
 
-  const [fotos, setFotos] = useState<FotoDB[]>([]);
+  const [todasFotos, setTodasFotos] = useState<FotoDB[]>([]);
   const [loadingFotos, setLoadingFotos] = useState(true);
   const [veiculoInfo, setVeiculoInfo] = useState<{ marca: string; modelo: string } | null>(null);
   const [cenario, setCenario] = useState<CenarioV2Id>("showroom");
@@ -36,7 +38,8 @@ export default function VenStudioPage() {
   const [opcoes, setOpcoes] = useState<{ light_direction?: string; light_strength?: number; preserve_subject?: number }>({});
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
-  const [resultadosAnteriores, setResultadosAnteriores] = useState<FotoResultado[]>([]);
+  const [deletando, setDeletando] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   const venStudio = useVenStudioV2();
   const processando = venStudio.status === "processando";
@@ -44,29 +47,30 @@ export default function VenStudioPage() {
   const temErro = venStudio.status === "erro";
   const cenarioConfig = CENARIOS_V2[cenario];
 
+  // Separar originais e geradas
+  const fotosOriginais = todasFotos.filter(f => !f.processada_por_ia);
+  const fotosGeradas = todasFotos.filter(f => f.processada_por_ia);
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/entrar");
   }, [user, authLoading, navigate]);
 
-  // Carregar fotos e dados do veículo
-  useEffect(() => {
+  const carregarFotos = useCallback(async () => {
     if (!veiculoId) { setLoadingFotos(false); return; }
-
-    async function load() {
-      const [fotosRes, veiculoRes] = await Promise.all([
-        supabase.from("fotos_veiculo").select("id, url_original, url_processada").eq("veiculo_id", veiculoId).order("ordem"),
-        supabase.from("veiculos").select("marca, modelo").eq("id", veiculoId).single(),
-      ]);
-      if (fotosRes.data) {
-        setFotos(fotosRes.data);
-        // Selecionar todas por padrão
-        setSelecionadas(new Set(fotosRes.data.map((f: FotoDB) => f.id)));
-      }
-      if (veiculoRes.data) setVeiculoInfo(veiculoRes.data);
-      setLoadingFotos(false);
+    const [fotosRes, veiculoRes] = await Promise.all([
+      supabase.from("fotos_veiculo").select("id, url_original, url_processada, processada_por_ia, ordem").eq("veiculo_id", veiculoId).order("ordem"),
+      supabase.from("veiculos").select("marca, modelo").eq("id", veiculoId).single(),
+    ]);
+    if (fotosRes.data) {
+      setTodasFotos(fotosRes.data);
+      const originais = fotosRes.data.filter((f: FotoDB) => !f.processada_por_ia);
+      setSelecionadas(new Set(originais.map((f: FotoDB) => f.id)));
     }
-    load();
+    if (veiculoRes.data) setVeiculoInfo(veiculoRes.data);
+    setLoadingFotos(false);
   }, [veiculoId]);
+
+  useEffect(() => { carregarFotos(); }, [carregarFotos]);
 
   const toggleSelecionada = useCallback((id: string) => {
     setSelecionadas(prev => {
@@ -78,16 +82,16 @@ export default function VenStudioPage() {
   }, []);
 
   const toggleTodas = useCallback(() => {
-    if (selecionadas.size === fotos.length) {
+    if (selecionadas.size === fotosOriginais.length) {
       setSelecionadas(new Set());
     } else {
-      setSelecionadas(new Set(fotos.map(f => f.id)));
+      setSelecionadas(new Set(fotosOriginais.map(f => f.id)));
     }
-  }, [selecionadas.size, fotos]);
+  }, [selecionadas.size, fotosOriginais]);
 
   const handleProcessar = async () => {
     if (!veiculoId || selecionadas.size === 0) return;
-    const fotosInput = fotos
+    const fotosInput = fotosOriginais
       .filter(f => selecionadas.has(f.id))
       .map((f) => ({ url: f.url_original, id: f.id }));
     await venStudio.processarTodas(
@@ -98,25 +102,49 @@ export default function VenStudioPage() {
     );
   };
 
-  // Quando concluir, acumular resultados (não sobrescrever)
+  // Quando concluir, salvar fotos geradas no banco
   useEffect(() => {
-    if (concluido || temErro) {
-      const novos = venStudio.fotos.filter(f => f.urlProcessada);
-      if (novos.length > 0) {
-        setResultadosAnteriores(prev => [...prev, ...novos]);
+    if (!concluido && !temErro) return;
+    if (!veiculoId) return;
+
+    const fotosComSucesso = venStudio.fotos.filter(f => f.status === "concluido" && f.urlProcessada);
+    if (fotosComSucesso.length === 0) return;
+
+    async function salvarNoAnuncio() {
+      setSalvando(true);
+      const maxOrdem = todasFotos.length > 0 ? Math.max(...todasFotos.map(f => f.ordem)) : 0;
+
+      const novasLinhas = fotosComSucesso.map((f, i) => ({
+        veiculo_id: veiculoId,
+        url_original: f.urlProcessada!,
+        processada_por_ia: true,
+        ordem: maxOrdem + 1 + i,
+      }));
+
+      const { error } = await supabase.from("fotos_veiculo").insert(novasLinhas);
+      if (!error) {
+        await carregarFotos();
       }
+      setSalvando(false);
     }
+
+    salvarNoAnuncio();
   }, [concluido, temErro]);
 
-  const handleDeletarResultado = (index: number) => {
-    setResultadosAnteriores(prev => prev.filter((_, i) => i !== index));
+  const handleDeletar = async (fotoId: string) => {
+    setDeletando(fotoId);
+    const { error } = await supabase.from("fotos_veiculo").delete().eq("id", fotoId);
+    if (!error) {
+      setTodasFotos(prev => prev.filter(f => f.id !== fotoId));
+    }
+    setDeletando(null);
   };
 
   const handleProcessarNovamente = () => {
     venStudio.resetar();
   };
 
-  const todasSelecionadas = selecionadas.size === fotos.length;
+  const todasSelecionadas = selecionadas.size === fotosOriginais.length && fotosOriginais.length > 0;
   const fotosSelecionadasCount = selecionadas.size;
 
   // Sem veículo selecionado
@@ -162,7 +190,9 @@ export default function VenStudioPage() {
               <Wand2 className="h-6 w-6 text-[hsl(var(--brand-primary))]" /> VenStudio IA
             </h1>
             {veiculoInfo && (
-              <p className="text-sm text-muted-foreground">{veiculoInfo.marca} {veiculoInfo.modelo} — {fotos.length} foto(s)</p>
+              <p className="text-sm text-muted-foreground">
+                {veiculoInfo.marca} {veiculoInfo.modelo} — {fotosOriginais.length} original(is), {fotosGeradas.length} gerada(s)
+              </p>
             )}
           </div>
         </div>
@@ -180,17 +210,63 @@ export default function VenStudioPage() {
           </CardContent>
         </Card>
 
-        {fotos.length === 0 ? (
+        {fotosOriginais.length === 0 ? (
           <Card className="bg-muted/30">
             <CardContent className="p-8 text-center">
               <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="font-semibold">Nenhuma foto encontrada</p>
-              <p className="text-sm text-muted-foreground mt-1">Este veículo não possui fotos cadastradas.</p>
+              <p className="font-semibold">Nenhuma foto original encontrada</p>
+              <p className="text-sm text-muted-foreground mt-1">Este veículo não possui fotos originais cadastradas.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-6">
-            {/* Grid de cenários */}
+
+            {/* ═══ FOTOS GERADAS POR IA (persistidas) ═══ */}
+            {fotosGeradas.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <ImagePlus className="h-4 w-4 text-[hsl(var(--brand-primary))]" />
+                  <p className="text-sm font-semibold">Fotos geradas por IA ({fotosGeradas.length})</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {fotosGeradas.map((f) => (
+                    <div key={f.id} className="relative group">
+                      <div
+                        className="aspect-[4/3] rounded-lg overflow-hidden border border-border cursor-pointer"
+                        onClick={() => setZoomUrl(f.url_original)}
+                      >
+                        <img src={f.url_original} alt="" className="w-full h-full object-cover" />
+                        <Badge className="absolute top-1.5 left-1.5 bg-[hsl(var(--brand-primary))] text-white text-[10px] px-1.5 py-0.5">
+                          <Sparkles className="h-2.5 w-2.5 mr-1" /> IA
+                        </Badge>
+                        {/* Zoom hover */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                        </div>
+                      </div>
+                      {/* Botão deletar */}
+                      <button
+                        type="button"
+                        disabled={deletando === f.id}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-red-600/80 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        onClick={() => handleDeletar(f.id)}
+                      >
+                        {deletando === f.id
+                          ? <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5 text-white" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ SEPARADOR ═══ */}
+            {fotosGeradas.length > 0 && (
+              <div className="border-t border-border" />
+            )}
+
+            {/* ═══ CENÁRIOS + SELEÇÃO + PROCESSAR ═══ */}
             {!processando && (
               <>
                 <div>
@@ -255,10 +331,10 @@ export default function VenStudioPage() {
                   )}
                 </div>
 
-                {/* Fotos do veículo — selecionáveis */}
+                {/* Fotos originais — selecionáveis */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold">Selecione as fotos para processar</p>
+                    <p className="text-sm font-semibold">Fotos originais — selecione para processar</p>
                     <button
                       type="button"
                       onClick={toggleTodas}
@@ -273,7 +349,7 @@ export default function VenStudioPage() {
                     </button>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {fotos.map((f) => {
+                    {fotosOriginais.map((f) => {
                       const selected = selecionadas.has(f.id);
                       return (
                         <div
@@ -284,13 +360,13 @@ export default function VenStudioPage() {
                           onClick={() => toggleSelecionada(f.id)}
                         >
                           <img src={f.url_original} alt="" className="w-full h-full object-cover" />
-                          {/* Checkbox overlay */}
+                          {/* Checkbox */}
                           <div className={`absolute top-1.5 left-1.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                             selected ? "bg-[hsl(var(--brand-primary))] border-[hsl(var(--brand-primary))]" : "bg-white/80 border-gray-400"
                           }`}>
                             {selected && <Check className="h-3.5 w-3.5 text-white" />}
                           </div>
-                          {/* Zoom button */}
+                          {/* Zoom */}
                           <button
                             type="button"
                             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -320,7 +396,7 @@ export default function VenStudioPage() {
               </>
             )}
 
-            {/* Processando */}
+            {/* ═══ PROCESSANDO ═══ */}
             {processando && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -356,7 +432,7 @@ export default function VenStudioPage() {
               </div>
             )}
 
-            {/* Resultados (concluido ou erro, acumulados) */}
+            {/* ═══ RESULTADO DA ÚLTIMA GERAÇÃO ═══ */}
             {(concluido || temErro) && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -364,7 +440,12 @@ export default function VenStudioPage() {
                     {venStudio.fotos.some(f => f.status === "concluido") ? (
                       <>
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        <p className="font-semibold text-green-700 dark:text-green-400">Processamento concluído!</p>
+                        <div>
+                          <p className="font-semibold text-green-700 dark:text-green-400">Processamento concluído!</p>
+                          <p className="text-xs text-muted-foreground">
+                            {salvando ? "Salvando no anúncio..." : "Fotos salvas no anúncio automaticamente."}
+                          </p>
+                        </div>
                       </>
                     ) : (
                       <>
@@ -378,38 +459,32 @@ export default function VenStudioPage() {
                   </Button>
                 </div>
 
-                {/* Última geração */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Última geração — {CENARIOS_V2[cenario].label}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {venStudio.fotos.map((r, i) => (
-                      <div key={i} className="space-y-1.5">
-                        <div
-                          className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border cursor-pointer group"
-                          onClick={() => setZoomUrl(r.urlProcessada || r.fotoUrl)}
-                        >
-                          <img src={r.urlProcessada || r.fotoUrl} alt="" className="w-full h-full object-cover" />
-                          {r.status === "concluido" && (
-                            <div className="absolute top-1.5 left-1.5">
-                              <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0.5">IA</Badge>
-                            </div>
-                          )}
-                          {r.status === "erro" && (
-                            <div className="absolute bottom-0 inset-x-0 bg-red-600/90 text-white text-[10px] p-1 text-center">
-                              {r.erro || "Erro"}
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {venStudio.fotos.map((r, i) => (
+                    <div key={i} className="relative group">
+                      <div
+                        className={`aspect-[4/3] rounded-lg overflow-hidden border cursor-pointer ${
+                          r.status === "concluido" ? "border-green-500/50" : r.status === "erro" ? "border-red-500/50" : "border-border"
+                        }`}
+                        onClick={() => setZoomUrl(r.urlProcessada || r.fotoUrl)}
+                      >
+                        <img src={r.urlProcessada || r.fotoUrl} alt="" className="w-full h-full object-cover" />
+                        {r.status === "concluido" && (
+                          <Badge className="absolute top-1.5 left-1.5 bg-green-600 text-white text-[10px] px-1.5 py-0.5">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> Gerada
+                          </Badge>
+                        )}
+                        {r.status === "erro" && (
+                          <div className="absolute bottom-0 inset-x-0 bg-red-600/90 text-white text-[10px] p-1 text-center">
+                            {r.erro || "Erro"}
                           </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
                         </div>
-                        {/* Original para comparação */}
-                        <p className="text-[10px] text-muted-foreground text-center">
-                          {r.status === "concluido" ? "Gerada com IA" : r.status === "erro" ? "Falhou" : "Original"}
-                        </p>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
 
                 {venStudio.erro && (
@@ -420,39 +495,7 @@ export default function VenStudioPage() {
               </div>
             )}
 
-            {/* Resultados anteriores acumulados */}
-            {resultadosAnteriores.length > 0 && (
-              <div className="space-y-3 border-t border-border pt-6">
-                <p className="text-sm font-semibold">Fotos geradas anteriormente ({resultadosAnteriores.length})</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {resultadosAnteriores.map((r, i) => (
-                    <div key={`prev-${i}`} className="space-y-1.5">
-                      <div
-                        className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border cursor-pointer group"
-                        onClick={() => setZoomUrl(r.urlProcessada || r.fotoUrl)}
-                      >
-                        <img src={r.urlProcessada || r.fotoUrl} alt="" className="w-full h-full object-cover" />
-                        <Badge className="absolute top-1.5 left-1.5 bg-green-600 text-white text-[10px] px-1.5 py-0.5">IA</Badge>
-                        {/* Zoom hover */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
-                        </div>
-                        {/* Delete button */}
-                        <button
-                          type="button"
-                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600/80 hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => { e.stopPropagation(); handleDeletarResultado(i); }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Botão voltar (sempre visível quando não processando) */}
+            {/* Botão voltar */}
             {!processando && (
               <div className="flex justify-end pt-2">
                 <Button variant="outline" onClick={() => navigate(-1)} className="gap-2">
