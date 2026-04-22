@@ -78,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (['concluido', 'erro', 'rejeitado'].includes(proc.status)) {
     return res.status(200).json({
       status: proc.status,
-      url_processada: proc.url_processada,
+      url_processada: proc.foto_processada_url,
       hamming_distance: proc.hamming_distance,
       aprovado: proc.aprovado,
       erro: proc.erro,
@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── ETAPA 1: pendente → enviar para Stability ──
   if (proc.status === 'pendente') {
     try {
-      const fotoUrl = proc.url_foto_original
+      const fotoUrl = proc.url_foto_original || proc.foto_original_url
       if (!fotoUrl) {
         await db.from('processamentos_ia').update({ status: 'erro', erro: 'URL da foto não encontrada' }).eq('id', processamentoId)
         return res.status(200).json({ status: 'erro', erro: 'URL da foto não encontrada' })
@@ -223,7 +223,7 @@ async function salvarResultado(
 
   await db.from('processamentos_ia').update({
     status: 'concluido',
-    url_processada: urlData.publicUrl,
+    foto_processada_url: urlData.publicUrl,
     aprovado: true,
     tempo_processamento_ms: tempoMs,
   }).eq('id', processamentoId)

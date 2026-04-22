@@ -102,11 +102,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('processamentos_ia')
       .insert({
         veiculo_id,
-        tipo: 'venstudio',
         cenario: cenario_id,
-        modelo_ia: 'stability_replace_bg_relight',
         engine_used: 'stability',
         status: 'pendente',
+        foto_original_url: foto_url,
         url_foto_original: foto_url,
         light_direction: light_direction ?? cenario.light_direction,
         light_strength: light_strength ?? cenario.light_strength,
