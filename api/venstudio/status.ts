@@ -133,8 +133,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return await salvarResultado(db, proc, processamentoId, resultBuffer, res)
         }
 
-        // Se retornou JSON com base64
-        const result = await stabilityResp.json() as { image?: string; artifacts?: Array<{ base64?: string }> }
+        // Se retornou JSON
+        const result = await stabilityResp.json() as { id?: string; image?: string; artifacts?: Array<{ base64?: string }> }
+
+        // Stability pode retornar { id } com status 200 (async) — tratar como 202
+        if (result.id && !result.image && !result.artifacts) {
+          await db.from('processamentos_ia').update({
+            status: 'processando',
+            generation_id: result.id,
+          }).eq('id', processamentoId)
+          return res.status(200).json({ status: 'processando' })
+        }
+
         const base64Image = result.image || result.artifacts?.[0]?.base64
         if (!base64Image) {
           const keys = Object.keys(result).join(', ')
@@ -184,13 +194,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (pollResp.status === 200) {
-        const result = await pollResp.json() as { image?: string }
-        if (!result.image) {
+        const pollContentType = pollResp.headers.get('content-type') || ''
+
+        // Binário direto
+        if (pollContentType.startsWith('image/')) {
+          const resultBuffer = Buffer.from(await pollResp.arrayBuffer())
+          return await salvarResultado(db, proc, processamentoId, resultBuffer, res)
+        }
+
+        // JSON
+        const result = await pollResp.json() as { image?: string; artifacts?: Array<{ base64?: string }> }
+        const base64Image = result.image || result.artifacts?.[0]?.base64
+        if (!base64Image) {
           await db.from('processamentos_ia').update({ status: 'erro', erro: 'Sem imagem no resultado async' }).eq('id', processamentoId)
           return res.status(200).json({ status: 'erro', erro: 'Sem imagem' })
         }
 
-        return await salvarResultado(db, proc, processamentoId, Buffer.from(result.image, 'base64'), res)
+        return await salvarResultado(db, proc, processamentoId, Buffer.from(base64Image, 'base64'), res)
       }
 
       const errText = await pollResp.text()
