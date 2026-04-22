@@ -1,19 +1,57 @@
 # VenStudio — Arquitetura e Guardrails
 
-## Status: PAUSADO (abril 2026)
+## Status: V2 IMPLEMENTADO — Stability AI (abril 2026)
 
-Após múltiplas iterações de teste:
-- Tier B (Sharp + fundos curados): preservação 100% mas qualidade visual insuficiente (sombra, integração carro-ambiente)
-- Tier C (Flux Fill Pro): qualidade visual melhor mas inconsistente (fingerprint rejeita 40-100% das fotos dependendo dos parâmetros)
+### Engine atual: Stability AI Replace Background & Relight
 
-Código preservado integralmente. Para retomar:
-1. Revisar alternativas (ControlNet Inpaint, Flair.ai API, Google Imagen com máscara)
-2. Calibrar sombra do Tier B (problema principal é integração visual, não preservação)
-3. Calibrar máscara do Tier C (dilatação e guidance)
+Pipeline V2 usa a API `replace-background-and-relight` da Stability AI, que:
+1. **Segmenta** automaticamente o subject (veículo)
+2. **Gera** novo background a partir de prompt
+3. **Relights** o subject para integrar com o novo fundo
+4. **Preserva** o subject original (parâmetro `preserve_original_subject: 0.95`)
 
-Decisão de retomada pendente do product owner.
+### Arquivos V2 (Stability AI)
+- `api/venstudio/processar.ts` — Endpoint principal (POST, auth, Stability API, fingerprint, upload)
+- `api/venstudio/status.ts` — Polling endpoint para processamento async (GET)
+- `src/lib/venstudio-cenarios-v2.ts` — 4 cenários com prompts e parâmetros
+- `src/hooks/useVenStudioV2.ts` — Hook React (processar, polling, cancelar, resetar)
+- `supabase/migrations/023_stability_engine.sql` — Colunas engine_used, generation_id, etc.
+- `public/images/cenarios/*.svg` — Thumbnails dos cenários
 
-### Código preservado (não deletar)
+### 4 Cenários V2
+| ID | Nome | Iluminação | Preserve |
+|----|------|-----------|----------|
+| `showroom` | Showroom Premium | above, 0.7 | 0.95 |
+| `deserto` | Deserto | left, 0.8 | 0.95 |
+| `neve` | Neve | above, 0.6 | 0.95 |
+| `garagem_luxo` | Garagem de Luxo | above, 0.75 | 0.95 |
+
+### Fluxo
+```
+Frontend POST /api/venstudio/processar
+  → Auth → Baixar foto → pHash original → Insert processamento
+  → Stability API (replace-background-and-relight)
+  → Se 200: fingerprint + upload + resposta síncrona
+  → Se 202: salvar generation_id, retornar processamento_id
+    → Frontend poll GET /api/venstudio/status?id=X
+    → Status pollar Stability → fingerprint → upload → resposta
+```
+
+### Validação: pHash Fingerprint
+- Biblioteca: `blockhash-core` (256×256 resize, 16-bit hash)
+- Threshold: `VENSTUDIO_PHASH_THRESHOLD` env var (default: 10)
+- Hamming distance ≤ threshold → aprovado
+- Hamming distance > threshold → rejeitado
+
+---
+
+## Código legado (preservado, não deletar)
+
+Iterações anteriores que não deram certo:
+- Tier B (Sharp + fundos curados): preservação 100% mas qualidade visual insuficiente
+- Tier C (Flux Fill Pro): fingerprint rejeita 40-100% das fotos
+
+Arquivos preservados:
 - `api/venstudio/compor-base.ts` (Tier B)
 - `api/venstudio/compor-premium-v2.ts` (Tier C)
 - `api/venstudio/webhook-replicate.ts`
@@ -28,7 +66,6 @@ Decisão de retomada pendente do product owner.
 - Bucket `venstudio-processados/`
 - Tabela `processamentos_ia`
 - Migrações 010, 011, 020
-- `tests/venstudio-v2-*.html`, `tests/test-premium-v2.cjs`
 
 ---
 
@@ -46,38 +83,15 @@ sob o CDC Art. 37 e Art. 66 (afirmacao falsa sobre produto).
 
 A plataforma e solidariamente responsavel com o anunciante.
 
-## Arquitetura aprovada (pipeline deterministico v2)
-
-1. **Segmentacao**: BiRefNet/RMBG -> PNG transparente do veiculo ORIGINAL
-2. **Fundo**: biblioteca pre-gerada (IA so aqui, UMA vez, offline)
-3. **Composicao**: Sharp/canvas deterministico (pixel-perfect)
-4. **Validacao**: fingerprint perceptual (pHash), hamming distance <= 2
-5. **Auditoria**: tabela `processamentos_ia` com log completo
-
-## Arquitetura PROIBIDA
-
-- Enviar foto do veiculo para GPT Image, Imagen, Flux, Stable Diffusion, Midjourney
-- Pipelines de "image-to-image" com prompt
-- Qualquer variacao que permita IA "reimaginar" pixels do veiculo
-- Inpainting, outpainting ou qualquer edicao generativa na regiao do veiculo
-
-## Como adicionar novo cenario
-
-1. Gerar 5 fundos via IA (UMA vez, revisar visualmente, SEM veiculo)
-2. Subir em bucket `fundos-cenarios/{novo_cenario}_01.jpg` ate `_05.jpg`
-3. Adicionar chave em CENARIOS_VENSTUDIO
-4. NUNCA gerar fundo "na hora" durante processamento do usuario
-
 ## Ajustes permitidos no veiculo
 
-- Correcao de brilho/contraste via curves/LUT (deterministico)
+- Correção de brilho/contraste via curves/LUT (determinístico)
 - Sharpening leve (unsharp mask)
-- Nenhuma operacao que regenere pixels
+- Nenhuma operação que regenere pixels
 
-## Reabilitar VenStudio em producao SOMENTE apos
+## Como a V2 garante preservação
 
-1. Pipeline deterministic implementado e testado
-2. Bateria de 50 testes (10 fotos x 5 cenarios) com 100% aprovacao visual
-3. Fingerprint validation passando em todos os casos
-4. Sign-off explicito do owner do produto
-5. UI explicita "veiculo preservado pixel a pixel"
+1. Stability API `preserve_original_subject: 0.95` mantém o veículo intacto
+2. pHash fingerprint compara antes/depois — rejeita se hamming > threshold
+3. Tabela `processamentos_ia` registra todos os dados para auditoria
+4. Threshold configurável via env para calibração futura

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdba74"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#g)"/>
+  <text x="200" y="140" text-anchor="middle" font-size="48">🏜️</text>
+  <text x="200" y="180" text-anchor="middle" font-family="system-ui" font-size="16" fill="#fff">Deserto</text>
+</svg>

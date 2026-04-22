@@ -297,13 +297,14 @@ export default function GerenciarFotosModal({
                 )}
               </button>
 
-              {/* VenStudio pausado */}
-              <span
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-small font-medium text-text-muted cursor-not-allowed opacity-60"
-                title="VenStudio IA — Em Breve"
+              {/* VenStudio IA */}
+              <button
+                type="button"
+                onClick={() => window.location.href = '/studio'}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)] px-4 py-2.5 text-small font-medium hover:bg-[var(--color-brand-primary)]/20 transition-colors"
               >
-                <Wand2 className="w-4 h-4" /> VenStudio IA — Em Breve
-              </span>
+                <Wand2 className="w-4 h-4" /> VenStudio IA
+              </button>
             </div>
 
             <p className="text-micro text-text-muted mt-3">
