@@ -24,7 +24,10 @@
       "Bash(node tests/test-tierc.cjs)",
       "Bash(node tests/debug-shadow.cjs)",
       "Bash(node tests/debug-sombra-tierb.cjs)",
-      "mcp__claude_ai_Supabase__list_projects"
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__get_logs",
+      "Bash(node tests/check-processamentos.cjs)"
     ]
   }
 }
