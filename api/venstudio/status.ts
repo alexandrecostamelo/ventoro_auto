@@ -125,13 +125,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Síncrono (200) — resultado imediato, upload e concluir
       if (stabilityResp.status === 200) {
-        const result = await stabilityResp.json() as { image?: string }
-        if (!result.image) {
-          await db.from('processamentos_ia').update({ status: 'erro', erro: 'Stability não retornou imagem' }).eq('id', processamentoId)
-          return res.status(200).json({ status: 'erro', erro: 'Sem imagem' })
+        const contentType = stabilityResp.headers.get('content-type') || ''
+
+        // Se retornou imagem binária diretamente (image/jpeg, image/png, etc.)
+        if (contentType.startsWith('image/')) {
+          const resultBuffer = Buffer.from(await stabilityResp.arrayBuffer())
+          return await salvarResultado(db, proc, processamentoId, resultBuffer, res)
         }
 
-        return await salvarResultado(db, proc, processamentoId, Buffer.from(result.image, 'base64'), res)
+        // Se retornou JSON com base64
+        const result = await stabilityResp.json() as { image?: string; artifacts?: Array<{ base64?: string }> }
+        const base64Image = result.image || result.artifacts?.[0]?.base64
+        if (!base64Image) {
+          const keys = Object.keys(result).join(', ')
+          await db.from('processamentos_ia').update({ status: 'erro', erro: `Stability retornou JSON sem imagem. Keys: ${keys}` }).eq('id', processamentoId)
+          return res.status(200).json({ status: 'erro', erro: 'Sem imagem no resultado' })
+        }
+
+        return await salvarResultado(db, proc, processamentoId, Buffer.from(base64Image, 'base64'), res)
       }
 
       // Assíncrono (202)
