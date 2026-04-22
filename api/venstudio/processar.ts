@@ -56,12 +56,23 @@ function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 }
 
+// ============================================================
+// Estratégia: NÃO processar aqui. Apenas:
+// 1. Validar input
+// 2. Inserir registro no DB com status='pendente'
+// 3. Salvar foto_url para o status.ts processar
+// 4. Retornar 202 imediatamente
+//
+// O client faz polling em /api/venstudio/status que:
+// - Detecta status='pendente'
+// - Baixa foto, chama Stability, faz pHash, salva resultado
+// Isso distribui o trabalho pesado em múltiplos requests de 10s
+// ============================================================
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res)
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-
-  const startTime = Date.now()
 
   try {
     // ── Auth ──
@@ -86,19 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cenario = CENARIO_PROMPTS[cenario_id as CenarioId]
     const db = getServiceClient()
 
-    // ── Baixar foto original ──
-    const fotoResp = await fetch(foto_url)
-    if (!fotoResp.ok) return res.status(400).json({ error: 'Não foi possível baixar a foto original' })
-    const fotoBuffer = Buffer.from(await fotoResp.arrayBuffer())
-
-    // ── Calcular pHash original (lazy import sharp) ──
-    const sharp = (await import('sharp')).default
-    const { bmvbhash } = await import('blockhash-core')
-
-    const originalResized = await sharp(fotoBuffer).resize(256, 256, { fit: 'fill' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-    const originalHash = bmvbhash({ data: new Uint8Array(originalResized.data), width: 256, height: 256 }, 16)
-
-    // ── Inserir processamento como 'processando' ──
+    // ── Inserir processamento como 'pendente' (sem processar nada pesado) ──
     const { data: proc, error: procErr } = await db
       .from('processamentos_ia')
       .insert({
@@ -107,8 +106,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cenario: cenario_id,
         modelo_ia: 'stability_replace_bg_relight',
         engine_used: 'stability',
-        status: 'processando',
-        fingerprint_original: originalHash,
+        status: 'pendente',
+        url_foto_original: foto_url,
         light_direction: light_direction ?? cenario.light_direction,
         light_strength: light_strength ?? cenario.light_strength,
         preserve_subject: preserve_subject ?? cenario.preserve_subject,
@@ -122,157 +121,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Erro ao registrar processamento', details: procErr?.message })
     }
 
-    const processamentoId = proc.id
-
-    // ── Chamar Stability AI ──
-    const FormData = (await import('form-data')).default
-    const formData = new FormData()
-    formData.append('image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
-    formData.append('background_prompt', cenario.prompt)
-    formData.append('preserve_original_subject', String(preserve_subject ?? cenario.preserve_subject))
-    formData.append('light_source_direction', light_direction ?? cenario.light_direction)
-    formData.append('light_source_strength', String(light_strength ?? cenario.light_strength))
-    formData.append('output_format', 'jpeg')
-
-    const stabilityResp = await fetch(STABILITY_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${STABILITY_API_KEY}`,
-        'Accept': 'application/json',
-        ...formData.getHeaders(),
-      },
-      body: formData.getBuffer(),
-    })
-
-    // ── Resultado síncrono (200) ──
-    if (stabilityResp.status === 200) {
-      const result = await stabilityResp.json() as { image?: string; finish_reason?: string }
-
-      if (!result.image) {
-        await db.from('processamentos_ia').update({ status: 'erro', erro: 'Sem imagem no response' }).eq('id', processamentoId)
-        return res.status(500).json({ error: 'Stability AI não retornou imagem' })
-      }
-
-      const resultBuffer = Buffer.from(result.image, 'base64')
-      return await finalizarProcessamento(db, sharp, bmvbhash, processamentoId, veiculo_id, resultBuffer, originalHash, startTime, res)
-    }
-
-    // ── Resultado assíncrono (202) ──
-    if (stabilityResp.status === 202) {
-      const asyncResult = await stabilityResp.json() as { id: string }
-
-      await db.from('processamentos_ia').update({
-        generation_id: asyncResult.id,
-        status: 'processando',
-      }).eq('id', processamentoId)
-
-      return res.status(202).json({
-        processamento_id: processamentoId,
-        generation_id: asyncResult.id,
-        status: 'processando',
-      })
-    }
-
-    // ── Erro ──
-    const errorBody = await stabilityResp.text()
-    await db.from('processamentos_ia').update({
-      status: 'erro',
-      erro: `Stability API ${stabilityResp.status}: ${errorBody.substring(0, 500)}`,
-    }).eq('id', processamentoId)
-
-    return res.status(stabilityResp.status).json({
-      error: `Stability AI retornou ${stabilityResp.status}`,
-      details: errorBody.substring(0, 200),
+    // Retorna imediatamente — o trabalho pesado é feito pelo status.ts via polling
+    return res.status(202).json({
+      processamento_id: proc.id,
+      status: 'pendente',
     })
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return res.status(500).json({ error: 'Erro interno', details: msg })
   }
-}
-
-// ── Finalizar: fingerprint + salvar ──
-async function finalizarProcessamento(
-  db: ReturnType<typeof getServiceClient>,
-  sharp: any,
-  bmvbhash: (data: { data: Uint8Array; width: number; height: number }, bits: number) => string,
-  processamentoId: string,
-  veiculoId: string,
-  resultBuffer: Buffer,
-  originalHash: string,
-  startTime: number,
-  res: VercelResponse,
-) {
-  const tempoMs = Date.now() - startTime
-
-  // pHash do resultado
-  const resultResized = await sharp(resultBuffer).resize(256, 256, { fit: 'fill' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-  const resultHash = bmvbhash({ data: new Uint8Array(resultResized.data), width: 256, height: 256 }, 16)
-
-  // Hamming distance
-  let hamming = 0
-  for (let i = 0; i < originalHash.length; i++) {
-    if (originalHash[i] !== resultHash[i]) hamming++
-  }
-
-  const THRESHOLD = parseInt(process.env.VENSTUDIO_PHASH_THRESHOLD || '10', 10)
-  const aprovado = hamming <= THRESHOLD
-
-  if (!aprovado) {
-    await db.from('processamentos_ia').update({
-      status: 'rejeitado',
-      fingerprint_processado: resultHash,
-      hamming_distance: hamming,
-      aprovado: false,
-      tempo_processamento_ms: tempoMs,
-    }).eq('id', processamentoId)
-
-    return res.status(200).json({
-      success: false,
-      processamento_id: processamentoId,
-      hamming_distance: hamming,
-      aprovado: false,
-      tempo_ms: tempoMs,
-      custo: 0.08,
-      engine: 'stability',
-      motivo: `Fingerprint rejeitado (hamming ${hamming} > ${THRESHOLD})`,
-    })
-  }
-
-  // Upload do resultado
-  const filename = `processada_stability_${Date.now()}.jpg`
-  const storagePath = `${veiculoId}/${filename}`
-
-  const { error: uploadErr } = await db.storage
-    .from('fotos-veiculos')
-    .upload(storagePath, resultBuffer, { contentType: 'image/jpeg', upsert: true })
-
-  if (uploadErr) {
-    await db.from('processamentos_ia').update({ status: 'erro', erro: `Upload falhou: ${uploadErr.message}` }).eq('id', processamentoId)
-    return res.status(500).json({ error: 'Erro ao salvar imagem', details: uploadErr.message })
-  }
-
-  const { data: urlData } = db.storage.from('fotos-veiculos').getPublicUrl(storagePath)
-  const urlProcessada = urlData.publicUrl
-
-  // Atualizar processamento
-  await db.from('processamentos_ia').update({
-    status: 'concluido',
-    url_processada: urlProcessada,
-    fingerprint_processado: resultHash,
-    hamming_distance: hamming,
-    aprovado: true,
-    tempo_processamento_ms: tempoMs,
-  }).eq('id', processamentoId)
-
-  return res.status(200).json({
-    success: true,
-    url_processada: urlProcessada,
-    processamento_id: processamentoId,
-    hamming_distance: hamming,
-    aprovado: true,
-    tempo_ms: tempoMs,
-    custo: 0.08,
-    engine: 'stability',
-  })
 }

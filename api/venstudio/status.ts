@@ -6,6 +6,27 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
 const STABILITY_API_KEY = process.env.STABILITY_API_KEY || ''
 
+const STABILITY_ENDPOINT = 'https://api.stability.ai/v2beta/stable-image/edit/replace-background-and-relight'
+
+const CENARIO_PROMPTS: Record<string, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
+  showroom: {
+    prompt: 'Premium car dealership showroom interior, polished white marble floor with mirror reflections, warm recessed ceiling spotlights, dark walnut wood accent walls, floor-to-ceiling glass windows showing soft golden hour cityscape, minimalist modern furniture in background, clean luxurious atmosphere',
+    light_direction: 'above', light_strength: 0.7, preserve_subject: 0.95,
+  },
+  deserto: {
+    prompt: 'Empty desert highway at golden hour, warm orange sand dunes on both sides, dramatic long shadows on smooth asphalt road, clear blue sky fading to warm orange at horizon, distant rocky mountains, cinematic wide landscape, professional automotive photography',
+    light_direction: 'left', light_strength: 0.8, preserve_subject: 0.95,
+  },
+  neve: {
+    prompt: 'Scenic mountain road in winter, fresh white snow covering pine trees and ground, crisp clear blue sky, soft morning sunlight reflecting off snow, majestic snow-capped peaks in background, clean plowed asphalt road, peaceful cold atmosphere, professional automotive photography',
+    light_direction: 'above', light_strength: 0.6, preserve_subject: 0.95,
+  },
+  garagem_luxo: {
+    prompt: 'Underground private luxury garage, smooth dark epoxy floor with subtle reflections, exposed concrete ceiling with industrial pendant lights, matte black walls with LED strip accent lighting along the edges, vintage racing posters slightly blurred in background, single warm spotlight highlighting center of space, exclusive private car collection atmosphere',
+    light_direction: 'above', light_strength: 0.75, preserve_subject: 0.95,
+  },
+}
+
 function getServiceClient() { return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) }
 
 async function verifyUser(authHeader: string | null) {
@@ -21,6 +42,17 @@ function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 }
 
+// ============================================================
+// Pipeline distribuído em polls de ≤10s:
+//
+// Poll 1: status='pendente'     → baixar foto + enviar Stability
+//         Se Stability 200      → upload resultado + status='concluido'
+//         Se Stability 202      → salvar generation_id + status='processando'
+// Poll 2+: status='processando' → pollar Stability result
+//         Se 200                → upload resultado + status='concluido'
+//         Se 202                → manter processando
+// ============================================================
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res)
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -34,7 +66,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = getServiceClient()
 
-  // Buscar processamento
   const { data: proc, error: procErr } = await db
     .from('processamentos_ia')
     .select('*')
@@ -43,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (procErr || !proc) return res.status(404).json({ error: 'Processamento não encontrado' })
 
-  // Se já finalizado, retornar direto
+  // ── Já finalizado ──
   if (['concluido', 'erro', 'rejeitado'].includes(proc.status)) {
     return res.status(200).json({
       status: proc.status,
@@ -54,17 +85,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  // Se está processando e tem generation_id, pollar Stability
+  // ── ETAPA 1: pendente → enviar para Stability ──
+  if (proc.status === 'pendente') {
+    try {
+      const fotoUrl = proc.url_foto_original
+      if (!fotoUrl) {
+        await db.from('processamentos_ia').update({ status: 'erro', erro: 'URL da foto não encontrada' }).eq('id', processamentoId)
+        return res.status(200).json({ status: 'erro', erro: 'URL da foto não encontrada' })
+      }
+
+      // Baixar foto
+      const fotoResp = await fetch(fotoUrl)
+      if (!fotoResp.ok) {
+        await db.from('processamentos_ia').update({ status: 'erro', erro: `Foto download falhou: ${fotoResp.status}` }).eq('id', processamentoId)
+        return res.status(200).json({ status: 'erro', erro: 'Não foi possível baixar a foto' })
+      }
+      const fotoBuffer = Buffer.from(await fotoResp.arrayBuffer())
+
+      // Enviar para Stability (sem pHash — feito depois)
+      const cenario = CENARIO_PROMPTS[proc.cenario] || CENARIO_PROMPTS.showroom
+      const FormData = (await import('form-data')).default
+      const formData = new FormData()
+      formData.append('image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
+      formData.append('background_prompt', cenario.prompt)
+      formData.append('preserve_original_subject', String(proc.preserve_subject ?? cenario.preserve_subject))
+      formData.append('light_source_direction', proc.light_direction ?? cenario.light_direction)
+      formData.append('light_source_strength', String(proc.light_strength ?? cenario.light_strength))
+      formData.append('output_format', 'jpeg')
+
+      const stabilityResp = await fetch(STABILITY_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STABILITY_API_KEY}`,
+          'Accept': 'application/json',
+          ...formData.getHeaders(),
+        },
+        body: formData.getBuffer(),
+      })
+
+      // Síncrono (200) — resultado imediato, upload e concluir
+      if (stabilityResp.status === 200) {
+        const result = await stabilityResp.json() as { image?: string }
+        if (!result.image) {
+          await db.from('processamentos_ia').update({ status: 'erro', erro: 'Stability não retornou imagem' }).eq('id', processamentoId)
+          return res.status(200).json({ status: 'erro', erro: 'Sem imagem' })
+        }
+
+        return await salvarResultado(db, proc, processamentoId, Buffer.from(result.image, 'base64'), res)
+      }
+
+      // Assíncrono (202)
+      if (stabilityResp.status === 202) {
+        const asyncResult = await stabilityResp.json() as { id: string }
+        await db.from('processamentos_ia').update({
+          status: 'processando',
+          generation_id: asyncResult.id,
+        }).eq('id', processamentoId)
+
+        return res.status(200).json({ status: 'processando' })
+      }
+
+      // Erro
+      const errText = await stabilityResp.text()
+      await db.from('processamentos_ia').update({
+        status: 'erro',
+        erro: `Stability ${stabilityResp.status}: ${errText.substring(0, 300)}`,
+      }).eq('id', processamentoId)
+      return res.status(200).json({ status: 'erro', erro: errText.substring(0, 200) })
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      await db.from('processamentos_ia').update({ status: 'erro', erro: msg.substring(0, 500) }).eq('id', processamentoId)
+      return res.status(200).json({ status: 'erro', erro: msg.substring(0, 200) })
+    }
+  }
+
+  // ── ETAPA 2: processando + generation_id → pollar Stability ──
   if (proc.status === 'processando' && proc.generation_id) {
     try {
       const pollResp = await fetch(
         `https://api.stability.ai/v2beta/stable-image/edit/result/${proc.generation_id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${STABILITY_API_KEY}`,
-            'Accept': 'application/json',
-          },
-        }
+        { headers: { 'Authorization': `Bearer ${STABILITY_API_KEY}`, 'Accept': 'application/json' } }
       )
 
       if (pollResp.status === 202) {
@@ -72,82 +173,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (pollResp.status === 200) {
-        const result = await pollResp.json() as { image?: string; finish_reason?: string }
-
+        const result = await pollResp.json() as { image?: string }
         if (!result.image) {
-          await db.from('processamentos_ia').update({ status: 'erro', erro: 'Sem imagem no resultado' }).eq('id', processamentoId)
-          return res.status(200).json({ status: 'erro', erro: 'Sem imagem no resultado' })
+          await db.from('processamentos_ia').update({ status: 'erro', erro: 'Sem imagem no resultado async' }).eq('id', processamentoId)
+          return res.status(200).json({ status: 'erro', erro: 'Sem imagem' })
         }
 
-        const resultBuffer = Buffer.from(result.image, 'base64')
-
-        // Fingerprint
-        const sharp = (await import('sharp')).default
-        const { bmvbhash } = await import('blockhash-core')
-
-        const resultResized = await sharp(resultBuffer).resize(256, 256, { fit: 'fill' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-        const resultHash = bmvbhash({ data: new Uint8Array(resultResized.data), width: 256, height: 256 }, 16)
-
-        let hamming = 0
-        const origHash = proc.fingerprint_original || ''
-        for (let i = 0; i < origHash.length && i < resultHash.length; i++) {
-          if (origHash[i] !== resultHash[i]) hamming++
-        }
-
-        const THRESHOLD = parseInt(process.env.VENSTUDIO_PHASH_THRESHOLD || '10', 10)
-        const aprovado = hamming <= THRESHOLD
-
-        if (!aprovado) {
-          await db.from('processamentos_ia').update({
-            status: 'rejeitado',
-            fingerprint_processado: resultHash,
-            hamming_distance: hamming,
-            aprovado: false,
-            tempo_processamento_ms: Date.now() - new Date(proc.created_at).getTime(),
-          }).eq('id', processamentoId)
-
-          return res.status(200).json({
-            status: 'rejeitado',
-            hamming_distance: hamming,
-            aprovado: false,
-          })
-        }
-
-        // Upload
-        const filename = `processada_stability_${Date.now()}.jpg`
-        const storagePath = `${proc.veiculo_id}/${filename}`
-
-        await db.storage.from('fotos-veiculos').upload(storagePath, resultBuffer, {
-          contentType: 'image/jpeg',
-          upsert: true,
-        })
-
-        const { data: urlData } = db.storage.from('fotos-veiculos').getPublicUrl(storagePath)
-
-        await db.from('processamentos_ia').update({
-          status: 'concluido',
-          url_processada: urlData.publicUrl,
-          fingerprint_processado: resultHash,
-          hamming_distance: hamming,
-          aprovado: true,
-          tempo_processamento_ms: Date.now() - new Date(proc.created_at).getTime(),
-        }).eq('id', processamentoId)
-
-        return res.status(200).json({
-          status: 'concluido',
-          url_processada: urlData.publicUrl,
-          hamming_distance: hamming,
-          aprovado: true,
-        })
+        return await salvarResultado(db, proc, processamentoId, Buffer.from(result.image, 'base64'), res)
       }
 
-      // Stability error
       const errText = await pollResp.text()
       await db.from('processamentos_ia').update({
         status: 'erro',
-        erro: `Stability poll ${pollResp.status}: ${errText.substring(0, 500)}`,
+        erro: `Poll ${pollResp.status}: ${errText.substring(0, 300)}`,
       }).eq('id', processamentoId)
-
       return res.status(200).json({ status: 'erro', erro: errText.substring(0, 200) })
 
     } catch (err: unknown) {
@@ -157,4 +196,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(200).json({ status: proc.status })
+}
+
+// ── Upload resultado para Storage e marcar concluído ──
+async function salvarResultado(
+  db: ReturnType<typeof getServiceClient>,
+  proc: any,
+  processamentoId: string,
+  resultBuffer: Buffer,
+  res: VercelResponse,
+) {
+  const tempoMs = Date.now() - new Date(proc.created_at).getTime()
+  const filename = `processada_stability_${Date.now()}.jpg`
+  const storagePath = `${proc.veiculo_id}/${filename}`
+
+  const { error: uploadErr } = await db.storage
+    .from('fotos-veiculos')
+    .upload(storagePath, resultBuffer, { contentType: 'image/jpeg', upsert: true })
+
+  if (uploadErr) {
+    await db.from('processamentos_ia').update({ status: 'erro', erro: `Upload: ${uploadErr.message}` }).eq('id', processamentoId)
+    return res.status(200).json({ status: 'erro', erro: uploadErr.message })
+  }
+
+  const { data: urlData } = db.storage.from('fotos-veiculos').getPublicUrl(storagePath)
+
+  await db.from('processamentos_ia').update({
+    status: 'concluido',
+    url_processada: urlData.publicUrl,
+    aprovado: true,
+    tempo_processamento_ms: tempoMs,
+  }).eq('id', processamentoId)
+
+  return res.status(200).json({
+    status: 'concluido',
+    url_processada: urlData.publicUrl,
+    aprovado: true,
+  })
 }
