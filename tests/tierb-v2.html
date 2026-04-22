@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Tier B v2 — Sombra Adaptativa</title>
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #e5e5e5; font-family: system-ui, -apple-system, sans-serif; padding: 2rem; }
+  h1 { font-size: 1.5rem; color: #f59e0b; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; color: #ccc; }
+  .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+  @media (min-width: 1400px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card { background: #141414; border-radius: 12px; overflow: hidden; border: 1px solid #222; }
+  .card img { width: 100%; display: block; }
+  .card .label { padding: 0.75rem 1rem; font-weight: 600; font-size: 0.95rem; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+  .shadow-tag { font-size: 0.7rem; font-weight: 400; padding: 2px 8px; border-radius: 4px; }
+  .shadow-tag.multiply { background: #1e293b; color: #93c5fd; }
+  .shadow-tag.over { background: #1c1917; color: #fdba74; }
+  .card .info { padding: 0.5rem 1rem; font-size: 0.8rem; color: #888; display: flex; align-items: center; gap: 0.5rem; }
+  .shadow-preview { width: 200px !important; height: 30px !important; object-fit: contain; background: #333; border-radius: 4px; }
+  .warn { color: #f59e0b; }
+  .ok { color: #34d399; }
+  .original { max-width: 400px; border-radius: 12px; border: 1px solid #222; margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+  th, td { text-align: left; padding: 0.4rem 0.8rem; border-bottom: 1px solid #222; }
+  th { color: #888; font-weight: 500; }
+  .panel { background: #141414; border-radius: 12px; padding: 1rem; margin-top: 1.5rem; border: 1px solid #222; }
+</style></head>
+<body>
+<h1>Tier B v2 — Sombra Adaptativa por Cenário</h1>
+<p class="subtitle">Honda Fit · 2026-04-21 · Cada cenário tem cor, opacidade, blur e blend mode calibrados individualmente</p>
+
+<h2>Foto Original</h2>
+<img src="debug-tierb-v2/original.jpg" class="original" alt="Original">
+
+<h2>Composições (5 cenários)</h2>
+<div class="grid">
+
+    <div class="card">
+      <div class="label">
+        Showroom Escuro
+        <span class="shadow-tag multiply">multiply · #000000 · opac 0.65 · blur 50</span>
+      </div>
+      <img src="debug-tierb-v2/tierb_showroom_escuro.jpg" alt="Showroom Escuro">
+      <div class="info">
+        <img src="debug-tierb-v2/sombra_showroom_escuro.png" class="shadow-preview" alt="sombra">
+        <span>Sombra isolada ↑</span>
+         · <span class="warn">Topo: 56px cortado</span>
+      </div>
+    </div>
+  
+
+    <div class="card">
+      <div class="label">
+        Estúdio Branco
+        <span class="shadow-tag over">over · #333333 · opac 0.35 · blur 40</span>
+      </div>
+      <img src="debug-tierb-v2/tierb_estudio_branco.jpg" alt="Estúdio Branco">
+      <div class="info">
+        <img src="debug-tierb-v2/sombra_estudio_branco.png" class="shadow-preview" alt="sombra">
+        <span>Sombra isolada ↑</span>
+         · <span class="warn">Topo: 56px cortado</span>
+      </div>
+    </div>
+  
+
+    <div class="card">
+      <div class="label">
+        Garagem Premium
+        <span class="shadow-tag multiply">multiply · #1a0f00 · opac 0.55 · blur 50</span>
+      </div>
+      <img src="debug-tierb-v2/tierb_garagem_premium.jpg" alt="Garagem Premium">
+      <div class="info">
+        <img src="debug-tierb-v2/sombra_garagem_premium.png" class="shadow-preview" alt="sombra">
+        <span>Sombra isolada ↑</span>
+         · <span class="warn">Topo: 56px cortado</span>
+      </div>
+    </div>
+  
+
+    <div class="card">
+      <div class="label">
+        Urbano Noturno
+        <span class="shadow-tag multiply">multiply · #000000 · opac 0.7 · blur 45</span>
+      </div>
+      <img src="debug-tierb-v2/tierb_urbano_noturno.jpg" alt="Urbano Noturno">
+      <div class="info">
+        <img src="debug-tierb-v2/sombra_urbano_noturno.png" class="shadow-preview" alt="sombra">
+        <span>Sombra isolada ↑</span>
+         · <span class="warn">Topo: 56px cortado</span>
+      </div>
+    </div>
+  
+
+    <div class="card">
+      <div class="label">
+        Neutro Gradiente
+        <span class="shadow-tag over">over · #000000 · opac 0.45 · blur 55</span>
+      </div>
+      <img src="debug-tierb-v2/tierb_neutro_gradiente.jpg" alt="Neutro Gradiente">
+      <div class="info">
+        <img src="debug-tierb-v2/sombra_neutro_gradiente.png" class="shadow-preview" alt="sombra">
+        <span>Sombra isolada ↑</span>
+         · <span class="warn">Topo: 56px cortado</span>
+      </div>
+    </div>
+  
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0;">Config de Sombra por Cenário</h2>
+  <table>
+    <tr><th>Cenário</th><th>Cor</th><th>Opacidade</th><th>Blur</th><th>Blend</th><th>Motivo</th></tr>
+    <tr><td>Showroom Escuro</td><td>#000000</td><td>0.65</td><td>50px</td><td>multiply</td><td>Fundo escuro: multiply escurece naturalmente</td></tr>
+    <tr><td>Estúdio Branco</td><td><strong>#333333</strong></td><td>0.35</td><td>40px</td><td><strong>over</strong></td><td>Fundo branco: cinza escuro com over cria sombra visível</td></tr>
+    <tr><td>Garagem Premium</td><td>#1a0f00</td><td>0.55</td><td>50px</td><td>multiply</td><td>Tom warm: sombra com tint âmbar</td></tr>
+    <tr><td>Urbano Noturno</td><td>#000000</td><td>0.70</td><td>45px</td><td>multiply</td><td>Asfalto molhado: sombra forte</td></tr>
+    <tr><td>Neutro Gradiente</td><td>#000000</td><td>0.45</td><td>55px</td><td><strong>over</strong></td><td>Gradiente escuro: over deposita sombra sobre qualquer luminosidade</td></tr>
+  </table>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0;">Checklist de Aprovação</h2>
+  <table>
+    <tr><td>Showroom Escuro</td><td>Sombra visível no piso polido?</td><td>___</td></tr>
+    <tr><td>Estúdio Branco</td><td>Sombra cinza visível no branco? Carro não flutua?</td><td>___</td></tr>
+    <tr><td>Garagem Premium</td><td>Sombra warm no concreto?</td><td>___</td></tr>
+    <tr><td>Urbano Noturno</td><td>Sombra forte no asfalto?</td><td>___</td></tr>
+    <tr><td>Neutro Gradiente</td><td>Sombra visível no gradiente? Carro ancorado?</td><td>___</td></tr>
+  </table>
+</div>
+
+
+<div class="panel" style="border-color: #f59e0b;">
+  <h2 style="margin-top:0; color: #f59e0b;">⚠ Nota: Corte no topo</h2>
+  <p style="font-size:0.85rem;">yRatio=0.92 com veículo de 1050px causa corte de 56px no topo. Será ajustado na Prioridade 2 (reduzir escala ou yRatio).</p>
+</div>
+
+
+</body></html>

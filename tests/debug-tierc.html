@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>DEBUG — Tier C Mask + Input Analysis</title>
+<style>
+  body { background: #111; color: #fff; font-family: system-ui; margin: 0; padding: 20px; }
+  h1 { color: #ff5252; text-align: center; }
+  h2 { color: #888; font-weight: 400; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin: 20px 0; }
+  .item { background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+  .item h3 { margin: 0; padding: 8px 12px; background: #222; font-size: 13px; }
+  .item img { width: 100%; display: block; }
+  .note { background: #1a1a0a; border: 1px solid #333300; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 13px; line-height: 1.6; }
+  .note h4 { color: #ffab00; margin: 0 0 8px; }
+  .bug { background: #2a0a0a; border: 1px solid #660000; }
+  .bug h4 { color: #ff5252; }
+  pre { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>DEBUG — Tier C Pipeline Analysis</h1>
+
+<div class="note bug">
+  <h4>PROBLEMA: Flux Fill substituiu o veiculo inteiro</h4>
+  <p>Em todas as 5 imagens, o Honda Fit virou outro carro (Audi, Ford Fusion, etc). Analise abaixo.</p>
+</div>
+
+<h2>1. Pipeline de mascara (passo a passo)</h2>
+<div class="row">
+  <div class="item">
+    <h3>A) Foto Original (INPUT para Flux)</h3>
+    <img src="debug/original.jpg" />
+  </div>
+  <div class="item">
+    <h3>B) Alpha Channel (do PNG segmentado)</h3>
+    <img src="debug/alpha_raw.png" />
+  </div>
+  <div class="item">
+    <h3>C) Alpha Resized (para dimensoes da original)</h3>
+    <img src="debug/alpha_resized.png" />
+  </div>
+  <div class="item">
+    <h3>D) Alpha Dilatado (+5px blur+threshold)</h3>
+    <img src="debug/alpha_dilated.png" />
+  </div>
+  <div class="item">
+    <h3>E) MASCARA FINAL (enviada ao Flux)</h3>
+    <img src="debug/mask_final.png" />
+  </div>
+</div>
+
+<div class="note">
+  <h4>Interpretacao da mascara para Flux Fill Pro</h4>
+  <p><strong>Branco = area a ser INPAINTED (regenerada)</strong><br>
+  <strong>Preto = area a ser PRESERVADA</strong></p>
+  <p>Se o carro aparece em BRANCO na mascara → Flux vai REGENERAR o carro → bug confirmado (mascara invertida).</p>
+  <p>Se o carro aparece em PRETO na mascara → mascara esta correta, problema eh outro.</p>
+</div>
+
+<h2>2. Prompts enviados ao Flux Fill Pro</h2>
+<pre>
+showroom_escuro:
+"Premium dark car showroom, polished black reflective marble floor, dramatic LED side lighting, dark charcoal walls, professional automotive photography, photorealistic, 8k"
+
+estudio_branco:
+"Professional white photography studio, infinite white cyclorama, soft diffused overhead lighting, clean seamless floor, commercial product photography, photorealistic, 8k"
+
+garagem_premium:
+"Industrial loft garage, textured polished concrete floor, warm amber focused lighting, exposed brick and metal elements, moody atmospheric automotive workshop, photorealistic, 8k"
+
+urbano_noturno:
+"Modern city street at night, wet asphalt reflecting neon lights, cyberpunk atmosphere, defocused building lights, cinematic automotive photography, photorealistic, 8k"
+
+neutro_gradiente:
+"Professional gradient background, smooth transition charcoal gray to deep black, subtle radial lighting, minimalist automotive advertising background, photorealistic, 8k"
+</pre>
+
+<div class="note bug">
+  <h4>Problema nos prompts</h4>
+  <p>Nenhum prompt menciona "preserve the vehicle", "keep the existing car", "do not modify the car".<br>
+  O prompt descreve APENAS o cenario. A protecao do veiculo depende 100% da mascara estar correta.</p>
+</div>
+
+<h2>3. Resultados Tier C (para referencia visual)</h2>
+<div class="row">
+  <div class="item">
+    <h3>Showroom Escuro — Hamming: 13</h3>
+    <img src="https://flhrbrnuwkpcdsnplibo.supabase.co/storage/v1/object/public/fotos-veiculos/c14d50d6-000c-4d30-8987-12a69bcd9b49/tierc_showroom_escuro_1776748455690.jpg" />
+  </div>
+  <div class="item">
+    <h3>Estudio Branco — Hamming: 18</h3>
+    <img src="https://flhrbrnuwkpcdsnplibo.supabase.co/storage/v1/object/public/fotos-veiculos/c14d50d6-000c-4d30-8987-12a69bcd9b49/tierc_estudio_branco_1776748478903.jpg" />
+  </div>
+  <div class="item">
+    <h3>Garagem Premium — Hamming: 16</h3>
+    <img src="https://flhrbrnuwkpcdsnplibo.supabase.co/storage/v1/object/public/fotos-veiculos/c14d50d6-000c-4d30-8987-12a69bcd9b49/tierc_garagem_premium_1776748501746.jpg" />
+  </div>
+  <div class="item">
+    <h3>Urbano Noturno — Hamming: 20</h3>
+    <img src="https://flhrbrnuwkpcdsnplibo.supabase.co/storage/v1/object/public/fotos-veiculos/c14d50d6-000c-4d30-8987-12a69bcd9b49/tierc_urbano_noturno_1776748525424.jpg" />
+  </div>
+  <div class="item">
+    <h3>Neutro Gradiente — Hamming: 9</h3>
+    <img src="https://flhrbrnuwkpcdsnplibo.supabase.co/storage/v1/object/public/fotos-veiculos/c14d50d6-000c-4d30-8987-12a69bcd9b49/tierc_neutro_gradiente_1776748547244.jpg" />
+  </div>
+</div>
+
+</body>
+</html>

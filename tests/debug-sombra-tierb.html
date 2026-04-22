@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Debug Sombra Tier B</title>
+<style>
+  body { background: #111; color: #eee; font-family: system-ui; padding: 2rem; }
+  h1 { color: #f59e0b; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); gap: 1.5rem; }
+  .card { background: #1a1a1a; border-radius: 12px; overflow: hidden; }
+  .card img { width: 100%; display: block; }
+  .card .info { padding: 1rem; }
+  .card h3 { margin: 0 0 0.5rem; }
+  .shadow-preview { display: flex; gap: 1rem; align-items: center; margin: 2rem 0; padding: 1rem; background: #1a1a1a; border-radius: 12px; }
+  .shadow-preview img { height: 120px; }
+  .verdict { font-size: 1.5rem; padding: 1rem; border-radius: 8px; text-align: center; margin: 1rem 0; }
+  .pass { background: #064e3b; color: #34d399; }
+  .fail { background: #7f1d1d; color: #f87171; }
+</style></head>
+<body>
+<h1>Debug Sombra Tier B</h1>
+<p>Verificação: sombra deve ser <strong>elipse borrada</strong>, não retângulo sólido.</p>
+
+<div class="verdict pass">ELIPSE SVG CONFIRMADA — Sombra gerada via &lt;ellipse&gt; SVG + blur</div>
+
+<h2>Artefatos de sombra</h2>
+<div class="shadow-preview">
+  <div>
+    <p>SVG raw (antes blur)</p>
+    <img src="debug/sombra_svg_raw.svg" style="background: #333;">
+  </div>
+  <div>
+    <p>PNG processada (após blur)</p>
+    <img src="debug/sombra_output.png" style="background: #333;">
+  </div>
+</div>
+
+<h2>Composições Tier B (3 cenários)</h2>
+<div class="grid">
+  <div class="card">
+    <img src="debug/tierb_debug_showroom_escuro.jpg">
+    <div class="info"><h3>Showroom Escuro</h3><p>Alpha 0.8, blur alto</p></div>
+  </div>
+  <div class="card">
+    <img src="debug/tierb_debug_estudio_branco.jpg">
+    <div class="info"><h3>Estúdio Branco</h3><p>Alpha 0.5, sombra suave</p></div>
+  </div>
+  <div class="card">
+    <img src="debug/tierb_debug_neutro_gradiente.jpg">
+    <div class="info"><h3>Neutro Gradiente</h3><p>Alpha 0.6, tint cinza</p></div>
+  </div>
+</div>
+
+<h2>Código da sombra (compor-base.ts linhas 201-218)</h2>
+<pre style="background:#1a1a1a;padding:1rem;border-radius:8px;overflow-x:auto;">
+const svgEllipse = Buffer.from(
+  '&lt;svg width="' + ellipseW + '" height="' + ellipseH + '"&gt;' +
+  '&lt;ellipse cx="..." cy="..." rx="..." ry="..." ' +
+  'fill="black" fill-opacity="' + config.sombraAlpha + '"/&gt;' +
+  '&lt;/svg&gt;'
+)
+
+const sombra = await sharp(svgEllipse)
+  .ensureAlpha()
+  .blur(blurSigma)
+  .png()
+  .toBuffer()
+</pre>
+</body></html>

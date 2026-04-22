@@ -12,7 +12,19 @@
       "Bash(npx supabase:*)",
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(npm list:*)",
+      "Bash(npm search:*)",
+      "Bash(mkdir:*)",
+      "Bash(curl:*)",
+      "Bash(node -e ':*)",
+      "Bash(npx vercel:*)",
+      "Bash(mv:*)",
+      "Bash(node tests/test-tierc.js)",
+      "Bash(node tests/test-tierc.cjs)",
+      "Bash(node tests/debug-shadow.cjs)",
+      "Bash(node tests/debug-sombra-tierb.cjs)",
+      "mcp__claude_ai_Supabase__list_projects"
     ]
   }
 }
