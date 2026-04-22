@@ -748,24 +748,27 @@ function StepStudio({ previews, cenario, onCenarioChange, opcoes, onOpcoesChange
             <p className="text-sm font-semibold mb-3">Escolha o cenário</p>
             <div className="grid grid-cols-2 gap-3">
               {CENARIOS_V2_LIST.map((c) => (
-                <Card
+                <button
+                  type="button"
                   key={c.id}
                   onClick={() => onCenarioChange(c.id as CenarioV2Id)}
-                  className={`cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
-                    cenario === c.id ? "ring-2 ring-primary shadow-lg" : ""
+                  className={`text-left rounded-lg border bg-card shadow-sm cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
+                    cenario === c.id ? "ring-2 ring-primary shadow-lg" : "border-border"
                   }`}
                 >
-                  <div className={`h-16 bg-gradient-to-br ${c.gradient}`} />
-                  <CardContent className="p-3">
-                    <p className="font-semibold text-sm">{c.label}</p>
+                  <div className={`h-20 bg-gradient-to-br ${c.gradient} flex items-center justify-center text-3xl`}>
+                    {c.emoji}
+                  </div>
+                  <div className="p-3">
+                    <p className="font-semibold text-sm text-foreground">{c.label}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{c.descricao}</p>
                     {cenario === c.id && (
                       <Badge className="mt-2 bg-primary/10 text-primary text-[10px]">
                         <CheckCircle2 className="h-3 w-3 mr-1" /> Selecionado
                       </Badge>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </button>
               ))}
             </div>
           </div>
