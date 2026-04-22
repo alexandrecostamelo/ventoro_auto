@@ -11,19 +11,19 @@ const STABILITY_ENDPOINT = 'https://api.stability.ai/v2beta/stable-image/edit/re
 const CENARIO_PROMPTS: Record<string, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
   showroom: {
     prompt: 'Premium car dealership showroom interior, polished white marble floor with mirror reflections, warm recessed ceiling spotlights, dark walnut wood accent walls, floor-to-ceiling glass windows showing soft golden hour cityscape, minimalist modern furniture in background, clean luxurious atmosphere',
-    light_direction: 'above', light_strength: 0.7, preserve_subject: 0.95,
+    light_direction: 'above', light_strength: 0.7, preserve_subject: 1.0,
   },
   deserto: {
     prompt: 'Empty desert highway at golden hour, warm orange sand dunes on both sides, dramatic long shadows on smooth asphalt road, clear blue sky fading to warm orange at horizon, distant rocky mountains, cinematic wide landscape, professional automotive photography',
-    light_direction: 'left', light_strength: 0.8, preserve_subject: 0.95,
+    light_direction: 'left', light_strength: 0.8, preserve_subject: 1.0,
   },
   neve: {
     prompt: 'Scenic mountain road in winter, fresh white snow covering pine trees and ground, crisp clear blue sky, soft morning sunlight reflecting off snow, majestic snow-capped peaks in background, clean plowed asphalt road, peaceful cold atmosphere, professional automotive photography',
-    light_direction: 'above', light_strength: 0.6, preserve_subject: 0.95,
+    light_direction: 'above', light_strength: 0.6, preserve_subject: 1.0,
   },
   garagem_luxo: {
     prompt: 'Underground private luxury garage, smooth dark epoxy floor with subtle reflections, exposed concrete ceiling with industrial pendant lights, matte black walls with LED strip accent lighting along the edges, vintage racing posters slightly blurred in background, single warm spotlight highlighting center of space, exclusive private car collection atmosphere',
-    light_direction: 'above', light_strength: 0.75, preserve_subject: 0.95,
+    light_direction: 'above', light_strength: 0.75, preserve_subject: 1.0,
   },
 }
 
@@ -108,10 +108,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const formData = new FormData()
       formData.append('subject_image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
       formData.append('background_prompt', cenario.prompt)
+      formData.append('background_negative_prompt', 'blurry, low quality, distorted, text, watermark, logo, other vehicles, people, cluttered, messy, unrealistic, cartoon, painting, illustration')
       formData.append('preserve_original_subject', String(proc.preserve_subject ?? cenario.preserve_subject))
       formData.append('light_source_direction', proc.light_direction ?? cenario.light_direction)
       formData.append('light_source_strength', String(proc.light_strength ?? cenario.light_strength))
-      formData.append('output_format', 'jpeg')
+      formData.append('output_format', 'webp')
 
       const stabilityResp = await fetch(STABILITY_ENDPOINT, {
         method: 'POST',
@@ -249,12 +250,12 @@ async function salvarResultado(
   res: VercelResponse,
 ) {
   const tempoMs = Date.now() - new Date(proc.created_at).getTime()
-  const filename = `processada_stability_${Date.now()}.jpg`
+  const filename = `processada_stability_${Date.now()}.webp`
   const storagePath = `${proc.veiculo_id}/${filename}`
 
   const { error: uploadErr } = await db.storage
     .from('fotos-veiculos')
-    .upload(storagePath, resultBuffer, { contentType: 'image/jpeg', upsert: true })
+    .upload(storagePath, resultBuffer, { contentType: 'image/webp', upsert: true })
 
   if (uploadErr) {
     await db.from('processamentos_ia').update({ status: 'erro', erro: `Upload: ${uploadErr.message}` }).eq('id', processamentoId)
