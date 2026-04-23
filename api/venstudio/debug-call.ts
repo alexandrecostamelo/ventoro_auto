@@ -10,8 +10,24 @@ const STABILITY_ENDPOINT = 'https://api.stability.ai/v2beta/stable-image/edit/re
 
 const CENARIO_PROMPTS: Record<string, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
   showroom: {
-    prompt: 'Premium car dealership showroom interior, polished white marble floor with mirror reflections, warm recessed ceiling spotlights, dark walnut wood accent walls, floor-to-ceiling glass windows showing soft golden hour cityscape, minimalist modern furniture in background, clean luxurious atmosphere',
-    light_direction: 'above', light_strength: 0.7, preserve_subject: 0.95,
+    prompt: 'Dark luxury car dealership showroom at night, polished black granite floor with mirror reflections, dramatic warm spotlights from above creating pools of light, dark charcoal walls with subtle LED accent strips, floor-to-ceiling tinted windows showing distant city lights at night, moody cinematic atmosphere, professional automotive photography',
+    light_direction: 'above', light_strength: 0.7, preserve_subject: 1.0,
+  },
+  estudio: {
+    prompt: 'Professional dark photography studio, seamless black backdrop, single dramatic key light from upper left creating sharp highlights and deep shadows, subtle rim light on edges, polished dark concrete floor with faint reflection, high contrast cinematic product photography, dark moody atmosphere',
+    light_direction: 'left', light_strength: 0.8, preserve_subject: 1.0,
+  },
+  garagem_luxo: {
+    prompt: 'Underground private luxury garage at night, smooth dark epoxy floor with wet reflections, exposed raw concrete ceiling with single warm pendant spotlight, matte black walls with amber LED strip lighting along base, deep shadows, dramatic contrast, exclusive private car vault atmosphere, cinematic dark mood',
+    light_direction: 'above', light_strength: 0.75, preserve_subject: 1.0,
+  },
+  externo: {
+    prompt: 'Dark elegant outdoor scenic road at dusk, smooth clean dark asphalt, dramatic twilight sky with deep purple and orange gradient, distant city skyline silhouette with warm lights, moody atmospheric fog, professional automotive photography, cinematic dark atmosphere',
+    light_direction: 'left', light_strength: 0.7, preserve_subject: 1.0,
+  },
+  urbano: {
+    prompt: 'Dark empty city street at night after rain, wet black asphalt with colorful neon reflections, moody purple and orange city lights in blurred background, dramatic fog and mist, no people, no other vehicles, cinematic night photography, dark atmospheric urban scene',
+    light_direction: 'right', light_strength: 0.6, preserve_subject: 1.0,
   },
 }
 
@@ -21,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const fotoUrl = req.query.foto_url as string
   const cenarioId = (req.query.cenario as string) || 'showroom'
-  const outputFormat = (req.query.format as string) || 'png'
+  const outputFormat = (req.query.format as string) || 'webp'
 
   if (!fotoUrl) return res.status(400).json({ error: 'foto_url required' })
 
@@ -51,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const formData = new FormData()
     formData.append('subject_image', fotoBuffer, { filename: 'foto.jpg', contentType: 'image/jpeg' })
     formData.append('background_prompt', cenario.prompt)
+    formData.append('background_negative_prompt', 'blurry, low quality, distorted, text, watermark, logo, other vehicles, people, cluttered, messy, unrealistic, cartoon, painting, illustration')
     formData.append('preserve_original_subject', String(cenario.preserve_subject))
     formData.append('light_source_direction', cenario.light_direction)
     formData.append('light_source_strength', String(cenario.light_strength))
