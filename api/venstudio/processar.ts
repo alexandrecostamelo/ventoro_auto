@@ -24,33 +24,33 @@ type CenarioId = (typeof CENARIOS_VALIDOS)[number]
 
 const CENARIO_PROMPTS: Record<CenarioId, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
   showroom: {
-    prompt: 'Dark luxury car dealership showroom at night, polished black granite floor with mirror reflections, dramatic warm spotlights from above creating pools of light, dark charcoal walls with subtle LED accent strips, floor-to-ceiling tinted windows showing distant city lights at night, moody cinematic atmosphere, professional automotive photography',
+    prompt: 'Pitch black luxury car showroom at night, very dark polished black granite floor with subtle mirror reflections, single dramatic warm spotlight from directly above, dark charcoal walls, dark ceiling, floor-to-ceiling tinted windows showing distant city lights, extremely dark moody cinematic atmosphere, all surfaces are dark, no white surfaces, professional automotive photography',
     light_direction: 'above',
-    light_strength: 0.7,
+    light_strength: 0.5,
     preserve_subject: 1.0,
   },
   estudio: {
-    prompt: 'Professional dark photography studio, seamless black backdrop, single dramatic key light from upper left creating sharp highlights and deep shadows, subtle rim light on edges, polished dark concrete floor with faint reflection, high contrast cinematic product photography, dark moody atmosphere',
+    prompt: 'Pitch black photography studio, seamless pure black backdrop and black floor, single dramatic key light from upper left creating sharp highlights and deep shadows on the car only, subtle rim light on edges, very dark polished black concrete floor with faint reflection, extreme high contrast, all surfaces are black, no white surfaces, cinematic product photography',
     light_direction: 'left',
-    light_strength: 0.8,
+    light_strength: 0.5,
     preserve_subject: 1.0,
   },
   garagem_luxo: {
-    prompt: 'Underground private luxury garage at night, smooth dark epoxy floor with wet reflections, exposed raw concrete ceiling with single warm pendant spotlight, matte black walls with amber LED strip lighting along base, deep shadows, dramatic contrast, exclusive private car vault atmosphere, cinematic dark mood',
+    prompt: 'Pitch black underground private luxury garage at night, very dark black epoxy floor with wet reflections, raw dark concrete ceiling with single warm pendant spotlight, matte black walls with dim amber LED strip along base, deep shadows everywhere, extreme contrast, all surfaces are dark, no white surfaces, exclusive private car vault, cinematic dark mood',
     light_direction: 'above',
-    light_strength: 0.75,
+    light_strength: 0.5,
     preserve_subject: 1.0,
   },
   externo: {
-    prompt: 'Dark elegant outdoor scenic road at dusk, smooth clean dark asphalt, dramatic twilight sky with deep purple and orange gradient, distant city skyline silhouette with warm lights, moody atmospheric fog, professional automotive photography, cinematic dark atmosphere',
+    prompt: 'Very dark outdoor scenic road at night, pitch black clean dark asphalt road, dramatic dark twilight sky with deep purple and orange gradient on horizon only, distant city skyline silhouette with small warm lights, dark moody atmospheric fog, all ground surfaces are dark black asphalt, no white surfaces, professional automotive photography, cinematic dark atmosphere',
     light_direction: 'left',
-    light_strength: 0.7,
+    light_strength: 0.5,
     preserve_subject: 1.0,
   },
   urbano: {
-    prompt: 'Dark empty city street at night after rain, wet black asphalt with colorful neon reflections, moody purple and orange city lights in blurred background, dramatic fog and mist, no people, no other vehicles, cinematic night photography, dark atmospheric urban scene',
+    prompt: 'Pitch black empty city street at night after rain, wet black asphalt with colorful neon reflections, very dark scene, moody purple and orange city lights in blurred background, dramatic fog and mist, all ground surfaces are wet dark black asphalt, no white surfaces, no people, no other vehicles, cinematic night photography, extremely dark atmospheric urban scene',
     light_direction: 'right',
-    light_strength: 0.6,
+    light_strength: 0.4,
     preserve_subject: 1.0,
   },
 }
