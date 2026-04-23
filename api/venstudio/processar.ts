@@ -24,31 +24,31 @@ type CenarioId = (typeof CENARIOS_VALIDOS)[number]
 
 const CENARIO_PROMPTS: Record<CenarioId, { prompt: string; light_direction: string; light_strength: number; preserve_subject: number }> = {
   showroom: {
-    prompt: 'Premium car dealership showroom interior, polished white marble floor with mirror reflections, warm recessed ceiling spotlights, dark walnut wood accent walls, floor-to-ceiling glass windows showing soft golden hour cityscape, minimalist modern furniture in background, clean luxurious atmosphere',
+    prompt: 'Dark luxury car dealership showroom at night, polished black granite floor with mirror reflections, dramatic warm spotlights from above creating pools of light, dark charcoal walls with subtle LED accent strips, floor-to-ceiling tinted windows showing distant city lights at night, moody cinematic atmosphere, professional automotive photography',
     light_direction: 'above',
     light_strength: 0.7,
     preserve_subject: 1.0,
   },
   estudio: {
-    prompt: 'Professional photography studio, seamless white infinity backdrop, perfectly smooth light gray polished concrete floor with soft reflections, high-key studio lighting with large softboxes, clean minimalist commercial automotive photography, no shadows, bright even lighting',
-    light_direction: 'above',
+    prompt: 'Professional dark photography studio, seamless black backdrop, single dramatic key light from upper left creating sharp highlights and deep shadows, subtle rim light on edges, polished dark concrete floor with faint reflection, high contrast cinematic product photography, dark moody atmosphere',
+    light_direction: 'left',
     light_strength: 0.8,
     preserve_subject: 1.0,
   },
   garagem_luxo: {
-    prompt: 'Underground private luxury garage, smooth dark epoxy floor with subtle reflections, exposed concrete ceiling with industrial pendant lights, matte black walls with LED strip accent lighting along the edges, vintage racing posters slightly blurred in background, single warm spotlight highlighting center of space, exclusive private car collection atmosphere',
+    prompt: 'Underground private luxury garage at night, smooth dark epoxy floor with wet reflections, exposed raw concrete ceiling with single warm pendant spotlight, matte black walls with amber LED strip lighting along base, deep shadows, dramatic contrast, exclusive private car vault atmosphere, cinematic dark mood',
     light_direction: 'above',
     light_strength: 0.75,
     preserve_subject: 1.0,
   },
   externo: {
-    prompt: 'Elegant outdoor scenic location at golden hour, smooth clean asphalt road, lush green manicured lawn on the sides, soft warm sunset light from the left, clear sky with gentle warm gradient from blue to golden orange, distant modern architecture blurred in background, professional automotive photography, cinematic atmosphere',
+    prompt: 'Dark elegant outdoor scenic road at dusk, smooth clean dark asphalt, dramatic twilight sky with deep purple and orange gradient, distant city skyline silhouette with warm lights, moody atmospheric fog, professional automotive photography, cinematic dark atmosphere',
     light_direction: 'left',
     light_strength: 0.7,
     preserve_subject: 1.0,
   },
   urbano: {
-    prompt: 'Modern city street at night, wet asphalt road with beautiful reflections, soft neon lights from nearby buildings in blue and purple tones, subtle bokeh city lights in background, dramatic moody atmosphere, gentle rain puddle reflections on the ground, professional automotive night photography',
+    prompt: 'Dark empty city street at night after rain, wet black asphalt with colorful neon reflections, moody purple and orange city lights in blurred background, dramatic fog and mist, no people, no other vehicles, cinematic night photography, dark atmospheric urban scene',
     light_direction: 'right',
     light_strength: 0.6,
     preserve_subject: 1.0,
